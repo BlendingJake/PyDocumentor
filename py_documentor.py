@@ -15,10 +15,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-from os import walk, mkdir
-from os.path import isfile, isdir, split as path_split, exists as path_exists, join as path_join
+from os import walk, mkdir, sep
+from os.path import isfile, isdir, split as path_split, exists as path_exists, join as path_join, abspath
 import importlib.util
-from inspect import getmembers, signature, isclass, isfunction, ismethod
+from inspect import getmembers, signature, isclass, isfunction, ismethod, Parameter
 import re
 
 
@@ -27,8 +27,7 @@ class PyDocumentor:
     @staticmethod
     def _analyze_function_docs(doc: str):
         data = {}
-        keywords = ["param", "return"]
-        pattern = "(:\\s*" + " |:\\s*".join(keywords) + " )"
+        pattern = "(:\s*param |:\s*return:)"
         splt = re.split(pattern, doc)
 
         if not re.match(pattern, splt[0]):
@@ -36,7 +35,10 @@ class PyDocumentor:
             del splt[0]
 
         for i in range(0, len(splt), 2):
-            name, info = splt[i + 1].split(":", 1)
+            if ":" in splt[i + 1]:
+                name, info = splt[i + 1].split(":", 1)
+            else:
+                name, info = '', splt[i + 1]
 
             if "param" in splt[i]:
                 data[name.strip()] = info.strip()
@@ -69,11 +71,11 @@ class PyDocumentor:
         # use method_dict and names of functions or methods to determine whether it is a static function
         for name, memb in methods_functions:
             if name in method_dict:
-                if isinstance(method_dict[name], staticmethod):
+                if isinstance(method_dict[name], staticmethod) and name[0] != "_":
                     data['static_methods'].append(PyDocumentor._collect_function_info(memb))
-                elif not callable(memb) and (len(name) < 2 or name[0:2] != "__"):  # is this a constant?
+                elif not callable(memb) and not (len(name) > 2 or name[0:2] == "__"):  # is this a constant?
                     data['constants'].append({'name': name, 'value': memb})
-                elif name[0] != "_" or (len(name) > 2 and name[0:2] != "__"):  # make sure this isn't a private method
+                elif name[0] != "_" and not (len(name) > 2 and name[0:2] == "__"):  # make sure this isn't a private method
                     data['methods'].append(PyDocumentor._collect_function_info(memb))
 
         return data
@@ -106,7 +108,7 @@ class PyDocumentor:
         data = {'classes': [], 'functions': [], 'name': mod.__name__}
 
         for name, memb in inspected:
-            if isclass(memb):
+            if isclass(memb) and memb.__module__ == mod.__name__:
                 data['classes'].append(PyDocumentor._collect_class_info(memb))
             # if this is a function, make sure it wasn't imported, and that it isn't private
             elif isfunction(memb) and name[0] != "_" and memb.__module__ == mod.__name__:
@@ -118,57 +120,81 @@ class PyDocumentor:
     def _generate_class_html(cls: dict):
         out = [
             "<div class='class'>",
-            "<a>class {}</a".format(cls['name']),
-            "<br>"
+            "<h3>class {}</h3>".format(cls['name']),
+            "<br><div class='class_body'>"
             "<p>{}</p>".format(cls['doc'])
         ]
 
+        if len(cls['constants']):
+            out.append("<h4>Constants</h4>")
         for i in cls['constants']:
-            out.append("{}: {}<br>".format(i['name'], i['value']))
+            out.append("<a class='constant'>{}: {}</a><br>".format(i['name'], i['value']))
 
+        if len(cls['static_methods']):
+            out.append("<h4>Static Methods</h4>")
         for i in cls['static_methods']:
             out.append(PyDocumentor._generate_function_html(i))
 
+        if len(cls['methods']):
+            out.append("<h4>Methods</h4>")
         for i in cls['methods']:
             out.append(PyDocumentor._generate_function_html(i))
 
-        out.append("</div>")
+        out.append("</div></div>")
 
         return "\n".join(out)
 
     @staticmethod
     def _generate_function_html(func: dict):
-        title_params = []
-        for i in func['parameters']:
-            if 'default' in i.keys():
-                title_params.append("{}:{}".format(i['name'], i['default']))
-            else:
-                title_params.append(i['name'])
-        title = "{}({})".format(func['name'], ", ".join(title_params))
-
         return '\n'.join([
-            "<div class='function'><a class='function_title'>{}</a>".format(title),
+            "<div class='function'>",
+            "<a class='function_title'>{}</a>".format(PyDocumentor._generate_function_signature(func)),
+            "<div class='function_body'>"
             "<p>{}</p>".format(func['doc']),
-            "<p>",
+            "<p class='parameters'>",
             PyDocumentor._generate_parameters_html(func['parameters']),
-            func['return'],
-            "</p></div>"
+            "<br>return: " + func['return'] if func['return'] != '' else "",
+            "</p></div></div>"
         ])
+
+    @staticmethod
+    def _generate_function_signature(func):
+        title = "{}(".format(func['name'])
+        params = []
+
+        for i in func['parameters']:
+            temp = i['name']
+
+            if 'default' in i:
+                temp += '={}'.format(i['default'] if i['default'] != "" else '""')
+
+            if i['kind'] == Parameter.VAR_POSITIONAL:
+                temp = "*{}".format(i['name'])
+            elif i['kind'] == Parameter.VAR_KEYWORD:
+                temp = "**{}".format(i['name'])
+
+            params.append(temp)
+
+        return title + ", ".join(params) + ")"
 
     @staticmethod
     def _generate_parameters_html(parameters: dict):
         out = []
         for i in parameters:
-            if 'default' in i.keys():
-                out.append("<a>{} (optional): {}</a>".format(i['name'], i['doc'] if 'doc' in i else ""))
-            else:
-                out.append("<a>{}: {}".format(i['name'], i['doc'] if 'doc' in i else ""))
+            if i['name'] not in ('self', 'cls'):
+                if 'default' in i.keys():
+                    out.append("<a>{} (optional): {}</a>".format(i['name'], i['doc'] if 'doc' in i else ""))
+                else:
+                    out.append("<a>{}: {}".format(i['name'], i['doc'] if 'doc' in i else ""))
 
         return "<br>\n".join(out)
 
     @staticmethod
     def _generate_module_html(mod):
-        out = ["<div class='module'><a>{}</a></div>".format(mod['name'])]
+        out = [
+            "<link rel='stylesheet' href='style.css>'",
+            "<div class='module'><div class='module_header'><h2>{}.py</h2></div>".format(mod['name'])
+        ]
 
         for func in mod['functions']:
             out.append(PyDocumentor._generate_function_html(func))
@@ -176,6 +202,7 @@ class PyDocumentor:
         for cls in mod['classes']:
             out.append(PyDocumentor._generate_class_html(cls))
 
+        out.append("</div>")
         return "\n".join(out)
 
     @staticmethod
@@ -253,8 +280,7 @@ class PyDocumentor:
 
     def export(self):
         # create export directory
-        dir_path = path_join(self._output_directory, self._output_folder_name)
-        print(dir_path)
+        dir_path = self._output_directory + sep + self._output_folder_name
         if not path_exists(dir_path):
             try:
                 mkdir(dir_path)
@@ -265,9 +291,8 @@ class PyDocumentor:
         self.export_as_html()
 
     def export_as_html(self):
-        out_d = path_join(self._output_directory, self._output_folder_name)
-        print(out_d)
         print(self._collected_data)
+        out_d = self._output_directory + sep + self._output_folder_name
 
         for file_path in self._collected_data.keys():
             folder, file_name_ext = path_split(file_path)
