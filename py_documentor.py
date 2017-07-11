@@ -196,20 +196,8 @@ class PyDocumentor:
         return "\n".join(out)
 
     @staticmethod
-    def _generate_module_html(mod):
-        out = [
-            "<head><link rel='stylesheet' type='text/css' href='style.css'></head>",
-            "<div class='module_header'><h2>{}.py</h2></div><div class='module'>".format(mod['name'])
-        ]
-
-        for func in mod['functions']:
-            out.append(PyDocumentor._generate_function_html(func))
-
-        for cls in mod['classes']:
-            out.append(PyDocumentor._generate_class_html(cls))
-
-        out.append("</div>")
-        return "\n".join(out)
+    def _input_to_bool(yes_no):
+        return yes_no in ("yes", "y")
 
     @staticmethod
     def _user_input(prompt, error="", validator=None):
@@ -223,11 +211,8 @@ class PyDocumentor:
 
     def __init__(self):
         self._collected_data = {}
-
-        if len(sys.argv) > 1 and sys.argv[1] == '-F':
-            self._folder_mode = True
-        else:
-            self._folder_mode = False
+        self._folder_mode = '-F' in sys.argv
+        self._advanced_mode = '-A' in sys.argv
 
         self._collect_file_names()
         modules = self._import_modules()
@@ -255,6 +240,33 @@ class PyDocumentor:
             self._directory, _ = path_split(file_path)
             self._file_paths = [file_path]
 
+    def _generate_css(self):
+        if self._advanced_mode and not self._add_css_to_html:
+            return "<head><link rel='stylesheet' type='text/css' href='style.css'></head>"
+        else:
+            # generate in-line css
+            css_file_path = path_split(__file__)[0] + sep + "style.css"
+            css_file = open(css_file_path, 'r')
+
+            css = "".join([line for line in css_file.readlines()])
+            css_file.close()
+            return "<head><style>{}</style></head>".format(css)
+
+    def _generate_module_html(self, mod):
+        out = [
+            PyDocumentor._generate_css(self),
+            "<div class='module_header'><h2>{}.py</h2></div><div class='module'>".format(mod['name'])
+        ]
+
+        for func in mod['functions']:
+            out.append(PyDocumentor._generate_function_html(func))
+
+        for cls in mod['classes']:
+            out.append(PyDocumentor._generate_class_html(cls))
+
+        out.append("</div>")
+        return "\n".join(out)
+
     def _get_user_options(self):
         # output directory
         out_d = self._user_input("Output Directory (leave blank to export where modules are)", "Invalid directory",
@@ -263,6 +275,17 @@ class PyDocumentor:
 
         # export folder name
         self._output_folder_name = self._user_input("Output Folder Name")
+        print()
+
+        # advanced options
+        self._add_css_to_html = True
+
+        if self._advanced_mode:
+            # css settings
+            self._add_css_to_html = self._input_to_bool(self._user_input("Add CSS to Each File Y/N",
+                                                                         "Answer must be yes or no",
+                                                                         lambda x: x.lower() in ("yes", "no", "y", "n")
+                                                                         ))
 
     def _import_modules(self):
         modules = []
@@ -309,18 +332,19 @@ class PyDocumentor:
             file.write(module_str)
             file.close()
 
-            # write css file
-            css_file_path = path_split(__file__)[0] + sep + "style.css"
-            css_file = open(css_file_path, 'r')
+            if self._advanced_mode and not self._add_css_to_html:
+                # write css file
+                css_file_path = path_split(__file__)[0] + sep + "style.css"
+                css_file = open(css_file_path, 'r')
 
-            to_css_file_path = path_join(out_d, 'style.css')
-            to_css_file = open(to_css_file_path, 'w')
+                to_css_file_path = path_join(out_d, 'style.css')
+                to_css_file = open(to_css_file_path, 'w')
 
-            for line in css_file.readlines():
-                to_css_file.write(line)
+                for line in css_file.readlines():
+                    to_css_file.write(line)
 
-            css_file.close()
-            to_css_file.close()
+                css_file.close()
+                to_css_file.close()
 
 if __name__ == "__main__":
     docker = PyDocumentor()
