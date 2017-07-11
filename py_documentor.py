@@ -150,11 +150,10 @@ class PyDocumentor:
             "<div class='function'>",
             "<a class='function_title'>{}</a>".format(PyDocumentor._generate_function_signature(func)),
             "<div class='function_body'>"
-            "<p>{}</p>".format(func['doc']),
-            "<p class='parameters'>",
+            "<p class='function_doc'>{}</p>".format(func['doc']),
             PyDocumentor._generate_parameters_html(func['parameters']),
-            "<br>return: " + func['return'] if func['return'] != '' else "",
-            "</p></div></div>"
+            "<p><a>return:</a> " + func['return'] + "</p>" if func['return'] != '' else "",
+            "</div></div>"
         ])
 
     @staticmethod
@@ -183,16 +182,20 @@ class PyDocumentor:
         for i in parameters:
             if i['name'] not in ('self', 'cls'):
                 if 'default' in i.keys():
-                    out.append("<a>{} (optional): {}</a>".format(i['name'], i['doc'] if 'doc' in i else ""))
+                    out.append("<p class='parameter'><a>{} (optional):</a> {}</p>".format(
+                        i['name'],
+                        i['doc'] if 'doc' in i else ""
+                    ))
                 else:
-                    out.append("<a>{}: {}".format(i['name'], i['doc'] if 'doc' in i else ""))
+                    out.append("<p class='parameter'><a>{}:</a> {}</p>".format(i['name'],
+                                                                               i['doc'] if 'doc' in i else ""))
 
-        return "<br>\n".join(out)
+        return "\n".join(out)
 
     @staticmethod
     def _generate_module_html(mod):
         out = [
-            "<link rel='stylesheet' href='style.css>'",
+            "<head><link rel='stylesheet' type='text/css' href='style.css'></head>",
             "<div class='module'><div class='module_header'><h2>{}.py</h2></div>".format(mod['name'])
         ]
 
@@ -303,6 +306,19 @@ class PyDocumentor:
             module_str = self._generate_module_html(self._collected_data[file_path])
             file.write(module_str)
             file.close()
+
+            # write css file
+            css_file_path = path_split(__file__)[0] + sep + "style.css"
+            css_file = open(css_file_path, 'r')
+
+            to_css_file_path = path_join(out_d, 'style.css')
+            to_css_file = open(to_css_file_path, 'w')
+
+            for line in css_file.readlines():
+                to_css_file.write(line)
+
+            css_file.close()
+            to_css_file.close()
 
 if __name__ == "__main__":
     docker = PyDocumentor()

@@ -1,0 +1,44 @@
+h2, h3, h4 {
+    font-family: sans-serif;
+}
+p {
+    margin: 0;
+}
+
+.module_header {
+    background-color: #2196f3;
+    border-radius: 3px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.module_header h2 {
+    color: white;
+    margin: 0;
+    font-size: 26px;
+}
+.class h3 {
+    margin: 0;
+}
+.class_body {
+    padding-left: 20px;
+}
+.function {
+    margin-bottom: 20px;
+}
+a.function_title {
+    font-size: 16px;
+    font-weight: bold;
+}
+.function_body {
+    padding-left: 20px;
+}
+p.function_doc {
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+.function_body .function_doc p.parameter {
+    margin-bottom: 5px;
+}
+.function_body .function_doc p.parameter a {
+    font-style: italic;
+}
