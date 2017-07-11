@@ -126,19 +126,22 @@ class PyDocumentor:
         ]
 
         if len(cls['constants']):
-            out.append("<h4>Constants</h4>")
-        for i in cls['constants']:
-            out.append("<a class='constant'>{}: {}</a><br>".format(i['name'], i['value']))
+            out.append("<h4>Constants</h4><div class='left_padded'>")
+            for i in cls['constants']:
+                out.append("<a class='constant'>{}: {}</a><br>".format(i['name'], i['value']))
+            out.append('</div>')
 
         if len(cls['static_methods']):
-            out.append("<h4>Static Methods</h4>")
-        for i in cls['static_methods']:
-            out.append(PyDocumentor._generate_function_html(i))
+            out.append("<h4>Static Methods</h4><div class='left_padded'>")
+            for i in cls['static_methods']:
+                out.append(PyDocumentor._generate_function_html(i))
+            out.append('</div>')
 
         if len(cls['methods']):
-            out.append("<h4>Methods</h4>")
-        for i in cls['methods']:
-            out.append(PyDocumentor._generate_function_html(i))
+            out.append("<h4>Methods</h4><div class='left_padded'>")
+            for i in cls['methods']:
+                out.append(PyDocumentor._generate_function_html(i))
+            out.append('</div>')
 
         out.append("</div></div>")
 
@@ -152,7 +155,7 @@ class PyDocumentor:
             "<div class='function_body'>"
             "<p class='function_doc'>{}</p>".format(func['doc']),
             PyDocumentor._generate_parameters_html(func['parameters']),
-            "<p><a>return:</a> " + func['return'] + "</p>" if func['return'] != '' else "",
+            "<p class='parameter'><a>return:</a> " + func['return'] + "</p>" if func['return'] != '' else "",
             "</div></div>"
         ])
 
@@ -232,7 +235,6 @@ class PyDocumentor:
         # collect module info
         for mod in modules:
             self._collected_data[mod.__file__] = self._collect_module_info(mod)
-        print("Collected {} modules\n".format(len(self._collected_data.keys())))
 
         # get export settings from user
         self._get_user_options()

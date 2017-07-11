@@ -1,5 +1,6 @@
 h2, h3, h4 {
     font-family: sans-serif;
+    color: #2196f3;
 }
 p {
     margin: 0;
@@ -19,7 +20,7 @@ p {
 .class h3 {
     margin: 0;
 }
-.class_body {
+.class_body, .left_padded, .function_body {
     padding-left: 20px;
 }
 .function {
@@ -28,17 +29,14 @@ p {
 a.function_title {
     font-size: 16px;
     font-weight: bold;
-}
-.function_body {
-    padding-left: 20px;
+    color: #2196f3;
 }
 p.function_doc {
-    margin-top: 10px;
-    margin-bottom: 20px;
+    margin: 10px 0 10px 10px;
 }
-.function_body .function_doc p.parameter {
+p.parameter {
     margin-bottom: 5px;
 }
-.function_body .function_doc p.parameter a {
-    font-style: italic;
+p.parameter a {
+    color: #2196f3;
 }
