@@ -6,6 +6,10 @@ p {
     margin: 0;
 }
 
+.module {
+    max-width: 750px;
+    padding-left: 30px;
+}
 .module_header {
     background-color: #2196f3;
     border-radius: 3px;

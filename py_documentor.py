@@ -199,7 +199,7 @@ class PyDocumentor:
     def _generate_module_html(mod):
         out = [
             "<head><link rel='stylesheet' type='text/css' href='style.css'></head>",
-            "<div class='module'><div class='module_header'><h2>{}.py</h2></div>".format(mod['name'])
+            "<div class='module_header'><h2>{}.py</h2></div><div class='module'>".format(mod['name'])
         ]
 
         for func in mod['functions']:
@@ -277,7 +277,6 @@ class PyDocumentor:
                 module_spec.loader.exec_module(mod)
                 modules.append(mod)
             except ImportError as e:
-                print(e)
                 print("There was an error importing <{}>".format(file_path))
                 quit()
 
@@ -295,8 +294,9 @@ class PyDocumentor:
 
         self.export_as_html()
 
+        print("\nExport Successful!\nExiting...")
+
     def export_as_html(self):
-        print(self._collected_data)
         out_d = self._output_directory + sep + self._output_folder_name
 
         for file_path in self._collected_data.keys():
