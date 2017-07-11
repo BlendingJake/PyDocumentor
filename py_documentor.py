@@ -17,7 +17,9 @@
 from inspect import signature
 import sys
 from os import walk
-from os.path import isfile, join, isdir
+from os.path import isfile, isdir
+from importlib import import_module
+from inspect import getmembers, signature, isclass, isfunction, ismethod
 
 
 class PyDocumentor:
@@ -36,14 +38,45 @@ class PyDocumentor:
         return result
 
     def __init__(self):
+        self._collected_data = {}
+
         if len(sys.argv) > 0 and sys.argv[0] == '-F':
             self._folder_mode = True
         else:
             self._folder_mode = False
 
-        self._collect_filenames()
+        self._collect_file_names()
+        self._import_modules()
 
-    def _collect_filenames(self):
+        print(self._collected_data)
+
+    def _collect_class_info(self, cls):
+        inspected = getmembers(cls)
+        data = {'methods': [], 'constants': [], 'static_methods': []}
+        methods_functions = []
+        method_dict = []
+
+        # collect names of method and __dict__ to use to check for static methods
+        for name, memb in inspected:
+            if isfunction(memb) or ismethod(memb):
+                methods_functions.append([name, memb])
+
+            if name == '__dict__':
+                method_dict = memb
+
+        # use method_dict and names of functions or methods to determine whether it is a static function
+        for name, memb in methods_functions:
+            if name in method_dict:
+                if isinstance(method_dict[name], staticmethod):
+                    data['static_methods'].append(self._collect_function_info(memb))
+                elif not callable(memb) and (len(name) < 2 or name[0:2] != "__"):  # is this a constant?
+                    data['constants'].append({'name': name, 'val': memb})
+                else:
+                    data['methods'].append(self._collect_function_info(memb))
+
+        return data
+
+    def _collect_file_names(self):
         if self._folder_mode:
             folder_path = self._user_input("Folder Path")
             if isdir(folder_path):
@@ -58,3 +91,39 @@ class PyDocumentor:
             file_path = self._user_input("File Path")
             if isfile(file_path):
                 self._file_names = [file_path]
+
+    @staticmethod
+    def _collect_function_info(func: callable):
+        data = {'doc': func.__doc__ if func.__doc__ is not None else "", 'parameters': []}
+        sig = signature(func)
+
+        for param in sig.parameters.values():
+            param_data = {'name': param.name, 'kind': param.kind}
+            if param.default is not param.empty:
+                param_data['default'] = param.default
+
+            data['parameters'].append(param_data)
+
+        return data
+
+    def _collect_module_info(self, mod):
+        inspected = getmembers(mod)
+        data = {'classes': [], 'functions': []}
+
+        for name, memb in inspected:
+            if isclass(memb):
+                data['classes'].append(self._collect_class_info(memb))
+            elif isfunction(memb):
+                data['functions'].append(self._collect_function_info(memb))
+
+        return data
+
+    def _import_modules(self):
+        for file_name in self._file_names:
+            try:
+                mod = import_module(file_name)
+                self._collected_data[file_name] = self._collect_module_info(mod)
+            except ImportError as e:
+                print(e)
+                print("There was an error importing <{}>".format(file_name))
+                quit()
