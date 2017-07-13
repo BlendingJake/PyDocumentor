@@ -56,7 +56,7 @@ class PyDocumentor:
             'methods': [],
             'constants': [],
             'static_methods': [],
-            'doc': cls.__doc__ if cls.__doc__ is not None else "",
+            'doc': cls.__doc__.strip() if cls.__doc__ is not None else "",
             'name': cls.__name__
         }
         methods_functions = []
@@ -89,7 +89,7 @@ class PyDocumentor:
             'name': func.__name__,
             'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
             'parameters': [],
-            'return': docs['RETURN'] if 'RETURN' in docs else ""
+            'return': docs['RETURN'].strip() if 'RETURN' in docs else ""
         }
         sig = signature(func)
 
@@ -118,6 +118,7 @@ class PyDocumentor:
 
         return data
 
+    # CLASS generation based on format
     @staticmethod
     def _generate_class_html(cls: dict):
         out = [
@@ -127,28 +128,53 @@ class PyDocumentor:
             "<p>{}</p>".format(cls['doc'])
         ]
 
-        if len(cls['constants']):
+        if cls['constants']:
             out.append("<h4>Constants</h4><div class='left_padded'>")
-            for i in cls['constants']:
-                out.append("<a class='constant'>{}: {}</a><br>".format(i['name'], i['value']))
+            for const in cls['constants']:
+                out.append("<a class='constant'>{}: {}</a><br>".format(const['name'], const['value']))
             out.append('</div>')
 
-        if len(cls['static_methods']):
+        if cls['static_methods']:
             out.append("<h4>Static Methods</h4><div class='left_padded'>")
-            for i in cls['static_methods']:
-                out.append(PyDocumentor._generate_function_html(i))
+            for func in cls['static_methods']:
+                out.append(PyDocumentor._generate_function_html(func))
             out.append('</div>')
 
-        if len(cls['methods']):
+        if cls['methods']:
             out.append("<h4>Methods</h4><div class='left_padded'>")
-            for i in cls['methods']:
-                out.append(PyDocumentor._generate_function_html(i))
+            for func in cls['methods']:
+                out.append(PyDocumentor._generate_function_html(func))
             out.append('</div>')
 
         out.append("</div></div>")
 
         return "\n".join(out)
 
+    @staticmethod
+    def _generate_class_markdown(cls: dict, indent):
+        out = [
+            "{}## {}".format(indent, cls['name']),
+            "  {}> {}\n".format(indent.split("*")[0], cls['doc']) if cls['doc'] else ""
+        ]
+
+        if cls['constants']:
+            out.append("  {}### Constants".format(indent))
+            for const in cls['constants']:
+                out.append("    {}#### {}: {}".format(indent, const['name'], const['value']))
+
+        if cls['static_methods']:
+            out.append("  {}### Static Methods".format(indent))
+            for func in cls['static_methods']:
+                out.append(PyDocumentor._generate_function_markdown(func, "    " + indent))
+
+        if cls['methods']:
+            out.append("  {}### Methods".format(indent))
+            for func in cls['methods']:
+                out.append(PyDocumentor._generate_function_markdown(func, "    " + indent))
+
+        return "\n".join(out)
+
+    # FUNCTION generation based on format
     @staticmethod
     def _generate_function_html(func: dict):
         return '\n'.join([
@@ -159,6 +185,14 @@ class PyDocumentor:
             PyDocumentor._generate_parameters_html(func['parameters']),
             "<p class='parameter'><a>return:</a> " + func['return'] + "</p>" if func['return'] != '' else "",
             "</div></div>"
+        ])
+
+    @staticmethod
+    def _generate_function_markdown(func: dict, indent: str):
+        return "\n".format(indent).join([
+            "{}#### {}".format(indent, PyDocumentor._generate_function_signature(func)),
+            "  {}> {}\n".format(indent.split("*")[0], func['doc']) if func['doc'] else "",
+            PyDocumentor._generate_parameters_markdown(func['parameters'], "  " + indent)
         ])
 
     @staticmethod
@@ -181,12 +215,26 @@ class PyDocumentor:
 
         return title + ", ".join(params) + ")"
 
+    # MODULE generation based on format
+    @staticmethod
+    def _generate_module_markdown(mod: dict):
+        out = ["# {}".format(mod['name'])]
+
+        for func in mod['functions']:
+            out.append(PyDocumentor._generate_function_markdown(func, " * "))
+
+        for cls in mod['classes']:
+            out.append(PyDocumentor._generate_class_markdown(cls, " * "))
+
+        return "\n".join(out)
+
+    # PARAMETER generation based on format
     @staticmethod
     def _generate_parameters_html(parameters: dict):
         out = []
         for i in parameters:
             if i['name'] not in ('self', 'cls'):
-                if 'default' in i.keys():
+                if 'default' in i:
                     out.append("<p class='parameter'><a>{} (optional):</a> {}</p>".format(
                         i['name'],
                         i['doc'] if 'doc' in i else ""
@@ -196,6 +244,23 @@ class PyDocumentor:
                                                                                i['doc'] if 'doc' in i else ""))
 
         return "\n".join(out)
+
+    @staticmethod
+    def _generate_parameters_markdown(parameters: dict, indent: str):
+        out = []
+        for i in parameters:
+            if i['name'] not in ('self', 'cls'):
+                if 'default' in i:
+                    out.append("`{}` (optional): {}".format(i['name'],
+                                                            i['doc'] if 'doc' in i else ""))
+                else:
+                    out.append("`{}`: {}".format(i['name'], i['doc'] if 'doc' in i else ""))
+
+        # put indentation on first item
+        if out:
+            out[0] = indent + out[0]
+
+        return "\n{}".format(indent).join(out)
 
     @staticmethod
     def _input_to_bool(yes_no):
@@ -242,6 +307,27 @@ class PyDocumentor:
             self._directory, _ = path_split(file_path)
             self._file_paths = [file_path]
 
+    def _export_as_html(self, output_dir):
+        self._file_writer(output_dir, self._generate_module_html, ".html")
+
+        # add css file to folder if needed
+        if self._advanced_mode and not self._add_css_to_html:
+            # write css file
+            css_file_path = path_split(__file__)[0] + sep + "style.css"
+            css_file = open(css_file_path, 'r')
+
+            to_css_file_path = path_join(output_dir, 'style.css')
+            to_css_file = open(to_css_file_path, 'w')
+
+            for line in css_file.readlines():
+                to_css_file.write(line)
+
+            css_file.close()
+            to_css_file.close()
+
+    def _export_as_markdown(self, output_dir):
+        self._file_writer(output_dir, self._generate_module_markdown, ".md")
+
     def _file_writer(self, output_dir: str, format_writer: callable, file_ext: str):
         for file_path in self._collected_data.keys():
             folder, file_name_ext = path_split(file_path)
@@ -265,7 +351,7 @@ class PyDocumentor:
             css_file.close()
             return "<head><style>{}</style></head>".format(css)
 
-    def _generate_module_html(self, mod):
+    def _generate_module_html(self, mod: dict):
         out = [
             PyDocumentor._generate_css(self),
             "<div class='module_header'><h2>{}.py</h2></div><div class='module'>".format(mod['name'])
@@ -293,7 +379,7 @@ class PyDocumentor:
         # export format
         self._output_format = int(self._user_input("Output Format (HTML=0, Markdown=1)",
                                                    "Value must be number between 0-1",
-                                                   lambda x: x.isdigit() and x in self.FORMATS))
+                                                   lambda x: x.isdigit() and int(x) in self.FORMATS))
         print()
 
         # advanced options
@@ -340,27 +426,6 @@ class PyDocumentor:
             self._export_as_markdown(dir_path)
 
         print("\nExport Successful!\nExiting...")
-
-    def _export_as_html(self, output_dir):
-        self._file_writer(output_dir, self._generate_module_html, ".html")
-
-        # add css file to folder if needed
-        if self._advanced_mode and not self._add_css_to_html:
-            # write css file
-            css_file_path = path_split(__file__)[0] + sep + "style.css"
-            css_file = open(css_file_path, 'r')
-
-            to_css_file_path = path_join(output_dir, 'style.css')
-            to_css_file = open(to_css_file_path, 'w')
-
-            for line in css_file.readlines():
-                to_css_file.write(line)
-
-            css_file.close()
-            to_css_file.close()
-
-    def _export_as_markdown(self, output_dir):
-        self._file_writer(output_dir, self._generate_module_markdown, ".md")
 
 if __name__ == "__main__":
     docker = PyDocumentor()
