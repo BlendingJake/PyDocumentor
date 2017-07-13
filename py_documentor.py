@@ -49,6 +49,7 @@ class PyDocumentor:
 
         return data
 
+    # COLLECT information ----------------------------------------------------
     @staticmethod
     def _collect_class_info(cls):
         inspected = getmembers(cls)
@@ -118,7 +119,7 @@ class PyDocumentor:
 
         return data
 
-    # CLASS generation based on format
+    # CLASS generation based on format ----------------------------------------
     @staticmethod
     def _generate_class_html(cls: dict):
         out = [
@@ -151,30 +152,31 @@ class PyDocumentor:
         return "\n".join(out)
 
     @staticmethod
-    def _generate_class_markdown(cls: dict, indent):
+    def _generate_class_markdown(cls: dict, indent, prefix: str):
         out = [
-            "{}## {}".format(indent, cls['name']),
+            "{}## <a name='{}.{}'>{}</a>".format(indent, prefix, cls['name'], cls['name']),
             "  {}> {}\n".format(indent.split("*")[0], cls['doc']) if cls['doc'] else ""
         ]
 
         if cls['constants']:
             out.append("  {}### Constants".format(indent))
             for const in cls['constants']:
-                out.append("    {}`{}` = {}".format(indent, const['name'], const['value']))
+                out.append("    {}<a name='{}.{}'>`{}`</a> = {}".format(indent, cls['name'], const['name'],
+                                                                        const['name'], const['value']))
 
         if cls['static_methods']:
             out.append("  {}### Static Methods".format(indent))
             for func in cls['static_methods']:
-                out.append(PyDocumentor._generate_function_markdown(func, "    " + indent))
+                out.append(PyDocumentor._generate_function_markdown(func, "    " + indent, cls['name']))
 
         if cls['methods']:
             out.append("  {}### Methods".format(indent))
             for func in cls['methods']:
-                out.append(PyDocumentor._generate_function_markdown(func, "    " + indent))
+                out.append(PyDocumentor._generate_function_markdown(func, "    " + indent, cls['name']))
 
         return "\n".join(out)
 
-    # FUNCTION generation based on format
+    # FUNCTION generation based on format --------------------------------------
     @staticmethod
     def _generate_function_html(func: dict):
         return '\n'.join([
@@ -188,13 +190,16 @@ class PyDocumentor:
         ])
 
     @staticmethod
-    def _generate_function_markdown(func: dict, indent: str):
+    def _generate_function_markdown(func: dict, indent: str, prefix: str):
         return "\n".format(indent).join([
-            "{}#### {}".format(indent, PyDocumentor._generate_function_signature(func)),
+            "{}#### <a name='{}.{}'>{}</a>]".format(indent, prefix, func['name'],
+                                                    PyDocumentor._generate_function_signature(func)
+                                                    ),
             "  {}> {}\n".format(indent.split("*")[0], func['doc']) if func['doc'] else "",
             PyDocumentor._generate_parameters_markdown(func['parameters'], "  " + indent)
         ])
 
+    # FUNCTION SIGNATURE generation ----------------------------------------------
     @staticmethod
     def _generate_function_signature(func):
         title = "{}(".format(func['name'])
@@ -215,20 +220,7 @@ class PyDocumentor:
 
         return title + ", ".join(params) + ")"
 
-    # MODULE generation based on format
-    @staticmethod
-    def _generate_module_markdown(mod: dict):
-        out = ["# {}".format(mod['name'])]
-
-        for func in mod['functions']:
-            out.append(PyDocumentor._generate_function_markdown(func, " * "))
-
-        for cls in mod['classes']:
-            out.append(PyDocumentor._generate_class_markdown(cls, " * "))
-
-        return "\n".join(out)
-
-    # PARAMETER generation based on format
+    # PARAMETER generation based on format -----------------------------------------
     @staticmethod
     def _generate_parameters_html(parameters: dict):
         out = []
@@ -262,6 +254,31 @@ class PyDocumentor:
 
         return "\n{}".format(indent).join(out)
 
+    # TABLE OF CONTENTS generation based on format ----------------------------------
+    @staticmethod
+    def _generate_table_of_contents_html(mod: dict):
+        pass
+
+    @staticmethod
+    def _generate_table_of_contents_markdown(mod: dict):
+        out = ["### Table of Contents"]
+
+        for i in mod['functions']:
+            out.append("  * [`{}.{}()`](#{}.{})".format(mod['name'], i['name'], mod['name'], i['name']))
+
+        for cls in mod['classes']:
+            out.append("  * [`{}.{}`](#{}.{})".format(mod['name'], cls['name'], mod['name'], cls['name']))
+
+            for const in cls['constants']:
+                out.append("    * [`{}.{}`](#{}.{})".format(cls['name'], const['name'], cls['name'], const['name']))
+            for func in cls['static_methods']:
+                out.append("    * [`{}.{}`()](#{}.{}) (static)".format(cls['name'], func['name'], cls['name'],
+                                                                       func['name']))
+            for func in cls['methods']:
+                out.append("    * [`{}.{}`()](#{}.{})".format(cls['name'], func['name'], cls['name'], func['name']))
+
+        return "\n".join(out)
+
     @staticmethod
     def _input_to_bool(yes_no):
         return yes_no in ("yes", "y")
@@ -269,7 +286,7 @@ class PyDocumentor:
     @staticmethod
     def _user_input(prompt, error="", validator=None):
         while True:
-            result = input(prompt + ": ")
+            result = input(prompt + ": ").strip()
 
             if validator is None or (validator is not None and validator(result)):
                 return result
@@ -351,11 +368,15 @@ class PyDocumentor:
             css_file.close()
             return "<head><style>{}</style></head>".format(css)
 
+    # MODULE generation based on format -------------------------------------------
     def _generate_module_html(self, mod: dict):
         out = [
             PyDocumentor._generate_css(self),
             "<div class='module_header'><h2>{}.py</h2></div><div class='module'>".format(mod['name'])
         ]
+
+        if self._table_of_contents:
+            out.append(PyDocumentor._generate_table_of_contents_html(mod))
 
         for func in mod['functions']:
             out.append(PyDocumentor._generate_function_html(func))
@@ -364,6 +385,20 @@ class PyDocumentor:
             out.append(PyDocumentor._generate_class_html(cls))
 
         out.append("</div>")
+        return "\n".join(out)
+
+    def _generate_module_markdown(self, mod: dict):
+        out = ["# {}".format(mod['name'])]
+
+        if self._table_of_contents:
+            out .append(self._generate_table_of_contents_markdown(mod))
+
+        for func in mod['functions']:
+            out.append(PyDocumentor._generate_function_markdown(func, " * ", mod['name']))
+
+        for cls in mod['classes']:
+            out.append(PyDocumentor._generate_class_markdown(cls, " * ", mod['name']))
+
         return "\n".join(out)
 
     def _get_user_options(self):
@@ -377,9 +412,14 @@ class PyDocumentor:
         print()
 
         # export format
-        self._output_format = int(self._user_input("Output Format (HTML=0, Markdown=1)",
+        self._output_format = int(self._user_input("Output format (HTML=0, Markdown=1)",
                                                    "Value must be number between 0-1",
                                                    lambda x: x.isdigit() and int(x) in self.FORMATS))
+
+        # add table of contents per page
+        self._table_of_contents = self._input_to_bool(self._user_input("Add table of contents to each file Y/N",
+                                                                       "Choice must be yes or no",
+                                                                       lambda x: x.lower() in ("yes", "no", "y", "n")))
         print()
 
         # advanced options
@@ -387,8 +427,8 @@ class PyDocumentor:
 
         if self._advanced_mode and self._output_format == self.HTML:
             # css settings
-            self._add_css_to_html = self._input_to_bool(self._user_input("Add CSS to Each File Y/N",
-                                                                         "Answer must be yes or no",
+            self._add_css_to_html = self._input_to_bool(self._user_input("Add CSS to each file Y/N",
+                                                                         "Choice must be yes or no",
                                                                          lambda x: x.lower() in ("yes", "no", "y", "n")
                                                                          ))
 
