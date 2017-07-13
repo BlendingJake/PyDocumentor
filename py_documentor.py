@@ -62,10 +62,12 @@ class PyDocumentor:
         methods_functions = []
         method_dict = []
 
-        # collect names of method and __dict__ to use to check for static methods
+        # collect names of method, constants and __dict__ to use to check for static methods
         for name, memb in inspected:
-            if isfunction(memb) or ismethod(memb):
+            if isfunction(memb) or ismethod(memb):  # check if it is a function or method
                 methods_functions.append([name, memb])
+            elif not callable(memb) and name[0] != "_":  # constants
+                data['constants'].append({'name': name, 'value': memb})
 
             if name == '__dict__':
                 method_dict = memb
@@ -75,9 +77,7 @@ class PyDocumentor:
             if name in method_dict:
                 if isinstance(method_dict[name], staticmethod) and name[0] != "_":
                     data['static_methods'].append(PyDocumentor._collect_function_info(memb))
-                elif not callable(memb) and not (len(name) > 2 or name[0:2] == "__"):  # is this a constant?
-                    data['constants'].append({'name': name, 'value': memb})
-                elif name[0] != "_" and not (len(name) > 2 and name[0:2] == "__"):  # make sure this isn't a private method
+                elif name[0] != "_" and not (len(name) > 2 and name[0:2] == "__"):  # don't include hidden methods
                     data['methods'].append(PyDocumentor._collect_function_info(memb))
 
         return data
@@ -131,7 +131,7 @@ class PyDocumentor:
         if cls['constants']:
             out.append("<h4>Constants</h4><div class='left_padded'>")
             for const in cls['constants']:
-                out.append("<a class='constant'>{}: {}</a><br>".format(const['name'], const['value']))
+                out.append("<a class='constant'>{} = {}</a><br>".format(const['name'], const['value']))
             out.append('</div>')
 
         if cls['static_methods']:
@@ -160,7 +160,7 @@ class PyDocumentor:
         if cls['constants']:
             out.append("  {}### Constants".format(indent))
             for const in cls['constants']:
-                out.append("    {}#### {}: {}".format(indent, const['name'], const['value']))
+                out.append("    {}`{}` = {}".format(indent, const['name'], const['value']))
 
         if cls['static_methods']:
             out.append("  {}### Static Methods".format(indent))
@@ -385,7 +385,7 @@ class PyDocumentor:
         # advanced options
         self._add_css_to_html = True
 
-        if self._advanced_mode:
+        if self._advanced_mode and self._output_format == self.HTML:
             # css settings
             self._add_css_to_html = self._input_to_bool(self._user_input("Add CSS to Each File Y/N",
                                                                          "Answer must be yes or no",

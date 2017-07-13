@@ -41,6 +41,6 @@ p.function_doc {
 p.parameter {
     margin-bottom: 5px;
 }
-p.parameter a {
+p.parameter a, .constant {
     color: #2196f3;
 }
