@@ -247,8 +247,13 @@ class PyDocumentor:
 
     def __init__(self):
         self._collected_data = {}
-        self._folder_mode = '-F' in sys.argv
-        self._advanced_mode = '-A' in sys.argv
+        self._folder_mode = self._input_to_bool(self._user_input("Collect all files in folder Y/N",
+                                                                 "Choice must be yes or no",
+                                                                 lambda x: x.lower() in ("yes", "no", "y", "n")))
+        self._advanced_mode = self._input_to_bool(self._user_input("Enter advanced mode Y/N",
+                                                                   "Choice must be yes or no",
+                                                                   lambda x: x.lower() in ("yes", "no", "y", "n")))
+        print()
 
         self._collect_file_names()
         self._get_user_options()
@@ -259,9 +264,6 @@ class PyDocumentor:
         # collect module info
         for mod in modules:
             self._collected_data[mod.__file__] = self._collect_module_info(mod)
-
-        # get export settings from user
-        self._get_user_options()
 
     def _collect_class_info(self, cls):
         inspected = getmembers(cls)
