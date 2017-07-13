@@ -49,76 +49,6 @@ class PyDocumentor:
 
         return data
 
-    # COLLECT information ----------------------------------------------------
-    @staticmethod
-    def _collect_class_info(cls):
-        inspected = getmembers(cls)
-        data = {
-            'methods': [],
-            'constants': [],
-            'static_methods': [],
-            'doc': cls.__doc__.strip() if cls.__doc__ is not None else "",
-            'name': cls.__name__
-        }
-        methods_functions = []
-        method_dict = []
-
-        # collect names of method, constants and __dict__ to use to check for static methods
-        for name, memb in inspected:
-            if isfunction(memb) or ismethod(memb):  # check if it is a function or method
-                methods_functions.append([name, memb])
-            elif not callable(memb) and name[0] != "_":  # constants
-                data['constants'].append({'name': name, 'value': memb})
-
-            if name == '__dict__':
-                method_dict = memb
-
-        # use method_dict and names of functions or methods to determine whether it is a static function
-        for name, memb in methods_functions:
-            if name in method_dict:
-                if isinstance(method_dict[name], staticmethod) and name[0] != "_":
-                    data['static_methods'].append(PyDocumentor._collect_function_info(memb))
-                elif name[0] != "_" and not (len(name) > 2 and name[0:2] == "__"):  # don't include hidden methods
-                    data['methods'].append(PyDocumentor._collect_function_info(memb))
-
-        return data
-
-    @staticmethod
-    def _collect_function_info(func: callable):
-        docs = PyDocumentor._analyze_function_docs(func.__doc__ if func.__doc__ is not None else "")
-        data = {
-            'name': func.__name__,
-            'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
-            'parameters': [],
-            'return': docs['RETURN'].strip() if 'RETURN' in docs else ""
-        }
-        sig = signature(func)
-
-        for param in sig.parameters.values():
-            param_data = {'name': param.name, 'kind': param.kind}
-            if param.default is not param.empty:
-                param_data['default'] = param.default
-            if param.name in docs:
-                param_data['doc'] = docs[param.name]
-
-            data['parameters'].append(param_data)
-
-        return data
-
-    @staticmethod
-    def _collect_module_info(mod):
-        inspected = getmembers(mod)
-        data = {'classes': [], 'functions': [], 'name': mod.__name__}
-
-        for name, memb in inspected:
-            if isclass(memb) and memb.__module__ == mod.__name__:
-                data['classes'].append(PyDocumentor._collect_class_info(memb))
-            # if this is a function, make sure it wasn't imported, and that it isn't private
-            elif isfunction(memb) and name[0] != "_" and memb.__module__ == mod.__name__:
-                data['functions'].append(PyDocumentor._collect_function_info(memb))
-
-        return data
-
     # CLASS generation based on format ----------------------------------------
     @staticmethod
     def _generate_class_html(cls: dict, prefix: str):
@@ -321,6 +251,9 @@ class PyDocumentor:
         self._advanced_mode = '-A' in sys.argv
 
         self._collect_file_names()
+        self._get_user_options()
+
+        # import
         modules = self._import_modules()
 
         # collect module info
@@ -329,6 +262,39 @@ class PyDocumentor:
 
         # get export settings from user
         self._get_user_options()
+
+    def _collect_class_info(self, cls):
+        inspected = getmembers(cls)
+        data = {
+            'methods': [],
+            'constants': [],
+            'static_methods': [],
+            'doc': cls.__doc__.strip() if cls.__doc__ is not None else "",
+            'name': cls.__name__
+        }
+        methods_functions = []
+        method_dict = []
+
+        # collect names of method, constants and __dict__ to use to check for static methods
+        for name, memb in inspected:
+            if isfunction(memb) or ismethod(memb):  # check if it is a function or method
+                methods_functions.append([name, memb])
+            elif not callable(memb) and name[0] != "_":  # constants
+                data['constants'].append({'name': name, 'value': memb})
+
+            if name == '__dict__':
+                method_dict = memb
+
+        # use method_dict and names of functions or methods to determine whether it is a static function
+        for name, memb in methods_functions:
+            if name in method_dict:
+                if isinstance(method_dict[name], staticmethod):
+                    if self._collect_private_methods or (not self._collect_private_methods and name[0] != '_'):
+                        data['static_methods'].append(self._collect_function_info(memb))
+                elif self._collect_private_methods or (not self._collect_private_methods and name[0] != '_'):
+                    data['methods'].append(self._collect_function_info(memb))
+
+        return data
 
     def _collect_file_names(self):
         if self._folder_mode:
@@ -345,6 +311,41 @@ class PyDocumentor:
             file_path = self._user_input("File Path", "Invalid file path", isfile)
             self._directory, _ = path_split(file_path)
             self._file_paths = [file_path]
+
+    def _collect_function_info(self, func: callable):
+        docs = PyDocumentor._analyze_function_docs(func.__doc__ if func.__doc__ is not None else "")
+        data = {
+            'name': func.__name__,
+            'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
+            'parameters': [],
+            'return': docs['RETURN'].strip() if 'RETURN' in docs else ""
+        }
+        sig = signature(func)
+
+        for param in sig.parameters.values():
+            param_data = {'name': param.name, 'kind': param.kind}
+            if param.default is not param.empty:
+                param_data['default'] = param.default
+            if param.name in docs:
+                param_data['doc'] = docs[param.name]
+
+            data['parameters'].append(param_data)
+
+        return data
+
+    def _collect_module_info(self, mod):
+        inspected = getmembers(mod)
+        data = {'classes': [], 'functions': [], 'name': mod.__name__}
+
+        for name, memb in inspected:
+            if isclass(memb) and memb.__module__ == mod.__name__:
+                data['classes'].append(self._collect_class_info(memb))
+            # if this is a function, make sure it wasn't imported, and that it isn't private
+            elif isfunction(memb) and memb.__module__ == mod.__name__:
+                if self._collect_private_methods or (not self._collect_private_methods and name[0] != "_"):
+                    data['functions'].append(self._collect_function_info(memb))
+
+        return data
 
     def _export_as_html(self, output_dir):
         self._file_writer(output_dir, self._generate_module_html, ".html")
@@ -444,15 +445,23 @@ class PyDocumentor:
                                                                        lambda x: x.lower() in ("yes", "no", "y", "n")))
         print()
 
-        # advanced options
+        # ADVANCED OPTIONS
         self._add_css_to_html = True
+        self._collect_private_methods = False
 
-        if self._advanced_mode and self._output_format == self.HTML:
-            # css settings
-            self._add_css_to_html = self._input_to_bool(self._user_input("Add CSS to each file Y/N",
-                                                                         "Choice must be yes or no",
-                                                                         lambda x: x.lower() in ("yes", "no", "y", "n")
-                                                                         ))
+        if self._advanced_mode:
+            if self._output_format == self.HTML:
+                self._add_css_to_html = self._input_to_bool(self._user_input("Add CSS to each file Y/N",
+                                                                             "Choice must be yes or no",
+                                                                             lambda x: x.lower() in ("yes", "no",
+                                                                                                     "y", "n")
+                                                                             ))
+
+                self._collect_private_methods = self._input_to_bool(
+                    self._user_input("Collect methods prefixed with '_' Y/N",
+                                     "Choice must be yes or no",
+                                     lambda x: x.lower() in ("yes", "no", "y", "n")
+                                     ))
 
     def _import_modules(self):
         modules = []
