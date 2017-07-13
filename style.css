@@ -21,6 +21,11 @@ p {
     margin: 0;
     font-size: 26px;
 }
+.table_of_contents a {
+    color: #2196f3;
+    font-family: sans-serif;
+    line-height: 22px;
+}
 .class h3 {
     margin: 0;
 }

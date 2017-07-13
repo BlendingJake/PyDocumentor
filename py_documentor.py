@@ -121,10 +121,10 @@ class PyDocumentor:
 
     # CLASS generation based on format ----------------------------------------
     @staticmethod
-    def _generate_class_html(cls: dict):
+    def _generate_class_html(cls: dict, prefix: str):
         out = [
             "<div class='class'>",
-            "<h3>class {}</h3>".format(cls['name']),
+            "<h3 id='{}.{}'>class {}</h3>".format(prefix, cls['name'], cls['name']),
             "<br><div class='class_body'>"
             "<p>{}</p>".format(cls['doc'])
         ]
@@ -132,19 +132,20 @@ class PyDocumentor:
         if cls['constants']:
             out.append("<h4>Constants</h4><div class='left_padded'>")
             for const in cls['constants']:
-                out.append("<a class='constant'>{} = {}</a><br>".format(const['name'], const['value']))
+                out.append("<a id='{}.{}' class='constant'>{} = {}</a><br>".format(cls['name'], const['name'],
+                                                                                   const['name'], const['value']))
             out.append('</div>')
 
         if cls['static_methods']:
             out.append("<h4>Static Methods</h4><div class='left_padded'>")
             for func in cls['static_methods']:
-                out.append(PyDocumentor._generate_function_html(func))
+                out.append(PyDocumentor._generate_function_html(func, cls['name']))
             out.append('</div>')
 
         if cls['methods']:
             out.append("<h4>Methods</h4><div class='left_padded'>")
             for func in cls['methods']:
-                out.append(PyDocumentor._generate_function_html(func))
+                out.append(PyDocumentor._generate_function_html(func, cls['name']))
             out.append('</div>')
 
         out.append("</div></div>")
@@ -154,7 +155,7 @@ class PyDocumentor:
     @staticmethod
     def _generate_class_markdown(cls: dict, indent, prefix: str):
         out = [
-            "{}## <a name='{}.{}'>{}</a>".format(indent, prefix, cls['name'], cls['name']),
+            "{}## <a name='{}.{}'>class {}</a>".format(indent, prefix, cls['name'], cls['name']),
             "  {}> {}\n".format(indent.split("*")[0], cls['doc']) if cls['doc'] else ""
         ]
 
@@ -178,10 +179,11 @@ class PyDocumentor:
 
     # FUNCTION generation based on format --------------------------------------
     @staticmethod
-    def _generate_function_html(func: dict):
+    def _generate_function_html(func: dict, prefix: str):
         return '\n'.join([
             "<div class='function'>",
-            "<a class='function_title'>{}</a>".format(PyDocumentor._generate_function_signature(func)),
+            "<a id='{}.{}' class='function_title'>{}</a>".format(prefix, func['name'],
+                                                                 PyDocumentor._generate_function_signature(func)),
             "<div class='function_body'>"
             "<p class='function_doc'>{}</p>".format(func['doc']),
             PyDocumentor._generate_parameters_html(func['parameters']),
@@ -257,14 +259,34 @@ class PyDocumentor:
     # TABLE OF CONTENTS generation based on format ----------------------------------
     @staticmethod
     def _generate_table_of_contents_html(mod: dict):
-        pass
+        out = ["<div class=table_of_contents><h3>Table of Contents</h3>", "<div class='left_padded'>"]
+
+        for func in mod['functions']:
+            out.append("<a href='#{}.{}'>{}.{}()</a>".format(mod['name'], func['name'], mod['name'], func['name']))
+
+        for cls in mod['classes']:
+            out.append("<a href='#{}.{}'>{}.{}</a>".format(mod['name'], cls['name'], mod['name'], cls['name']))
+            out.append("<div class='left_padded'")
+
+            for const in cls['constants']:
+                out.append("<a href='#{}.{}'>{}.{}</a>".format(cls['name'], const['name'], cls['name'], const['name']))
+            for func in cls['static_methods']:
+                out.append("<a href='#{}.{}'>{}.{}() (static)</a>".format(cls['name'], func['name'], cls['name'],
+                                                                          func['name']))
+            for func in cls['methods']:
+                out.append("<a href='#{}.{}'>{}.{}()</a>".format(cls['name'], func['name'], cls['name'], func['name']))
+
+            out.append("</div>")
+        out.append("</div></div>")
+
+        return "<br>\n".join(out)
 
     @staticmethod
     def _generate_table_of_contents_markdown(mod: dict):
         out = ["### Table of Contents"]
 
-        for i in mod['functions']:
-            out.append("  * [`{}.{}()`](#{}.{})".format(mod['name'], i['name'], mod['name'], i['name']))
+        for func in mod['functions']:
+            out.append("  * [`{}.{}()`](#{}.{})".format(mod['name'], func['name'], mod['name'], func['name']))
 
         for cls in mod['classes']:
             out.append("  * [`{}.{}`](#{}.{})".format(mod['name'], cls['name'], mod['name'], cls['name']))
@@ -379,10 +401,10 @@ class PyDocumentor:
             out.append(PyDocumentor._generate_table_of_contents_html(mod))
 
         for func in mod['functions']:
-            out.append(PyDocumentor._generate_function_html(func))
+            out.append(PyDocumentor._generate_function_html(func, mod['name']))
 
         for cls in mod['classes']:
-            out.append(PyDocumentor._generate_class_html(cls))
+            out.append(PyDocumentor._generate_class_html(cls, mod['name']))
 
         out.append("</div>")
         return "\n".join(out)
@@ -412,8 +434,8 @@ class PyDocumentor:
         print()
 
         # export format
-        self._output_format = int(self._user_input("Output format (HTML=0, Markdown=1)",
-                                                   "Value must be number between 0-1",
+        self._output_format = int(self._user_input("Output Format (HTML=0, Markdown=1)",
+                                                   "Value must be number between 0-{}".format(len(self.FORMATS) - 1),
                                                    lambda x: x.isdigit() and int(x) in self.FORMATS))
 
         # add table of contents per page
