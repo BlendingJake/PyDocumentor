@@ -8,7 +8,7 @@ p {
 
 .module {
     max-width: 750px;
-    padding-left: 30px;
+    padding-left: 15px;
 }
 .module_header {
     background-color: #2196f3;
@@ -25,7 +25,7 @@ p {
     margin: 0;
 }
 .class_body, .left_padded, .function_body {
-    padding-left: 20px;
+    padding-left: 30px;
 }
 .function {
     margin-bottom: 20px;
