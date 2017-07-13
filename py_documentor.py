@@ -23,6 +23,8 @@ import re
 
 
 class PyDocumentor:
+    HTML, MARK_DOWN = [i for i in range(2)]
+    FORMATS = [HTML, MARK_DOWN]
 
     @staticmethod
     def _analyze_function_docs(doc: str):
@@ -240,6 +242,17 @@ class PyDocumentor:
             self._directory, _ = path_split(file_path)
             self._file_paths = [file_path]
 
+    def _file_writer(self, output_dir: str, format_writer: callable, file_ext: str):
+        for file_path in self._collected_data.keys():
+            folder, file_name_ext = path_split(file_path)
+            file_name = str(file_name_ext.split('.')[0])
+            new_fp = path_join(output_dir, file_name + file_ext)
+
+            file = open(new_fp, 'w')
+            module_str = format_writer(self._collected_data[file_path])
+            file.write(module_str)
+            file.close()
+
     def _generate_css(self):
         if self._advanced_mode and not self._add_css_to_html:
             return "<head><link rel='stylesheet' type='text/css' href='style.css'></head>"
@@ -275,6 +288,12 @@ class PyDocumentor:
 
         # export folder name
         self._output_folder_name = self._user_input("Output Folder Name")
+        print()
+
+        # export format
+        self._output_format = int(self._user_input("Output Format (HTML=0, Markdown=1)",
+                                                   "Value must be number between 0-1",
+                                                   lambda x: x.isdigit() and x in self.FORMATS))
         print()
 
         # advanced options
@@ -315,36 +334,33 @@ class PyDocumentor:
                 print("<PermissionError trying to create folder <{}>>".format(dir_path))
                 exit()
 
-        self.export_as_html()
+        if self._output_format == self.HTML:
+            self._export_as_html(dir_path)
+        elif self._output_format == self.MARK_DOWN:
+            self._export_as_markdown(dir_path)
 
         print("\nExport Successful!\nExiting...")
 
-    def export_as_html(self):
-        out_d = self._output_directory + sep + self._output_folder_name
+    def _export_as_html(self, output_dir):
+        self._file_writer(output_dir, self._generate_module_html, ".html")
 
-        for file_path in self._collected_data.keys():
-            folder, file_name_ext = path_split(file_path)
-            file_name = str(file_name_ext.split('.')[0])
-            new_fp = path_join(out_d, file_name + '.html')
+        # add css file to folder if needed
+        if self._advanced_mode and not self._add_css_to_html:
+            # write css file
+            css_file_path = path_split(__file__)[0] + sep + "style.css"
+            css_file = open(css_file_path, 'r')
 
-            file = open(new_fp, 'w')
-            module_str = self._generate_module_html(self._collected_data[file_path])
-            file.write(module_str)
-            file.close()
+            to_css_file_path = path_join(output_dir, 'style.css')
+            to_css_file = open(to_css_file_path, 'w')
 
-            if self._advanced_mode and not self._add_css_to_html:
-                # write css file
-                css_file_path = path_split(__file__)[0] + sep + "style.css"
-                css_file = open(css_file_path, 'r')
+            for line in css_file.readlines():
+                to_css_file.write(line)
 
-                to_css_file_path = path_join(out_d, 'style.css')
-                to_css_file = open(to_css_file_path, 'w')
+            css_file.close()
+            to_css_file.close()
 
-                for line in css_file.readlines():
-                    to_css_file.write(line)
-
-                css_file.close()
-                to_css_file.close()
+    def _export_as_markdown(self, output_dir):
+        self._file_writer(output_dir, self._generate_module_markdown, ".md")
 
 if __name__ == "__main__":
     docker = PyDocumentor()
