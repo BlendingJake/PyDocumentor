@@ -26,9 +26,6 @@ p {
     font-family: sans-serif;
     line-height: 22px;
 }
-.class h3 {
-    margin: 0;
-}
 .class_body, .left_padded, .function_body {
     padding-left: 30px;
 }
