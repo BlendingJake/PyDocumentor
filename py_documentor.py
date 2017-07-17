@@ -519,7 +519,14 @@ class PyDocumentor:
     FORMATS = [HTML, MARK_DOWN]
 
     @staticmethod
-    def _analyze_function_docs(doc: str):
+    def _analyze_function_docs(doc: str) -> dict:
+        """
+        Analyze the doc string of a function and look for documentation for parameters and return values based on the
+        same format that PyCharm uses.
+        :param doc: func.__doc__ from the function
+        :return: a dictionary of {parameter name: doc}, also included are FUNCTION which includes the documentation 
+        not about the parameters, and RETURN.
+        """
         data = {}
         pattern = "(:\s*param |:\s*return:)"
         splt = re.split(pattern, doc)
@@ -542,7 +549,13 @@ class PyDocumentor:
         return data
 
     @staticmethod
-    def _file_writer(output_dir: str, data, file_ext: str):
+    def _file_writer(output_dir: str, data: dict, file_ext: str):
+        """
+        Take the data and write it to output_dir
+        :param output_dir: the directory to write all the files in 
+        :param data: a dict of {file_path: formatted_string}
+        :param file_ext: The file extension that the data is formatted for
+        """
         for file_path in data.keys():
             folder, file_name_ext = path_split(file_path)
             file_name = str(file_name_ext.split('.')[0])
@@ -554,7 +567,15 @@ class PyDocumentor:
             file.close()
 
     @staticmethod
-    def _format_functions(out: list, ft, funcs, prefix, indent):
+    def _format_functions(out: list, ft, funcs: list, prefix: str, indent: int):
+        """
+        Execute the proper Formatter function calls to add this block of functions to out
+        :param out: the list being used to collected all the formatted data
+        :param ft: the Formatter class to use to format the data
+        :param funcs: a list of the functions to format
+        :param prefix: the name of the parent module for links
+        :param indent: the indentation of this block of functions
+        """
         out.append(ft.function_block_start(indent=indent - 1))
         for func in funcs:
             out.append(ft.function_start(indent=indent))
@@ -571,11 +592,23 @@ class PyDocumentor:
         out.append(ft.function_block_end(indent=indent - 1))
 
     @staticmethod
-    def _input_to_bool(yes_no):
+    def _input_to_bool(yes_no: str) -> bool:
+        """
+        Go from a yes/no response to a boolean
+        :param yes_no: a string of either y, yes, n, no
+        :return: a boolean of True for y or yes, else False
+        """
         return yes_no in ("yes", "y")
 
     @staticmethod
-    def _user_input(prompt, error="", validator=None):
+    def _user_input(prompt: str, error="", validator=None) -> str:
+        """
+        Get user input, if there is a validator given, then continue to collect input until the data is good
+        :param prompt: The prompt to output
+        :param error: The error to show if there is a validator and it fails
+        :param validator: A callable to use to make sure the data is in a valid format
+        :return: the valid input
+        """
         while True:
             result = input(prompt + ": ").strip()
 
@@ -585,6 +618,9 @@ class PyDocumentor:
                 print("<{}>".format(error), end="\n\n")
 
     def __init__(self):
+        """
+        Collect format options and needed file/folder locations. Then collect the data from those files.
+        """
         self.f_options = FormatOptions()
         self._collected_data = {}
         self._folder_mode = self._input_to_bool(self._user_input("Collect all files in folder Y/N",
@@ -605,7 +641,12 @@ class PyDocumentor:
         for mod in modules:
             self._collected_data[mod.__file__] = self._collect_module_info(mod)
 
-    def _collect_class_info(self, cls):
+    def _collect_class_info(self, cls) -> dict:
+        """
+        Inspect a class and get its methods, constants, static_methods, doc and name. 
+        :param cls: The class to collect the data from
+        :return: A dictionary of the collected data with the keys as shown below
+        """
         inspected = getmembers(cls)
         data = {
             'methods': [],
@@ -639,6 +680,10 @@ class PyDocumentor:
         return data
 
     def _collect_file_names(self):
+        """
+        Collect all the file names for the modules that will have documentation created. If in folder_mode, then
+        walk through the folder and all of its child folders recursively, collecting all Python files.
+        """
         if self._folder_mode:
             folder_path = self._user_input("Folder Path", "Invalid folder path", isdir)
             self._directory = folder_path
@@ -654,7 +699,12 @@ class PyDocumentor:
             self._directory, _ = path_split(file_path)
             self._file_paths = [file_path]
 
-    def _collect_function_info(self, func: callable):
+    def _collect_function_info(self, func: callable) -> dict:
+        """
+        Inspect and collect the data from a function. Get its name, documentation, and parameters.
+        :param func: The function to inspect and collect data on
+        :return: A dictionary containing the keys shown below
+        """
         docs = PyDocumentor._analyze_function_docs(func.__doc__ if func.__doc__ is not None else "")
         data = {
             'name': func.__name__,
@@ -675,7 +725,13 @@ class PyDocumentor:
 
         return data
 
-    def _collect_module_info(self, mod):
+    def _collect_module_info(self, mod) -> dict:
+        """
+        Inspect and collect data from the module given. Collect information from all of its classes and functions as
+        well.
+        :param mod: the module to inspect and collect data from 
+        :return: a dictionary with the keys shown below
+        """
         inspected = getmembers(mod)
         data = {'classes': [], 'functions': [], 'name': mod.__name__}
 
@@ -690,6 +746,9 @@ class PyDocumentor:
         return data
 
     def _get_user_options(self):
+        """
+        Collect options from the user that allows them to customize the output 
+        """
         # output directory
         out_d = self._user_input("Output Directory (leave blank to export where modules are)", "Invalid directory",
                                  isdir)
@@ -726,7 +785,12 @@ class PyDocumentor:
                                  lambda x: x.lower() in ("yes", "no", "y", "n")
                                  ))
 
-    def _import_modules(self):
+    def _import_modules(self) -> list:
+        """
+        Go through all the file paths collected earlier and import those modules so that the information can be 
+        collected on the modules
+        :return: A list of all the imported modules
+        """
         modules = []
 
         for file_path in self._file_paths:
@@ -745,6 +809,10 @@ class PyDocumentor:
         return modules
 
     def export(self):
+        """
+        Create an export directory, then create the correct Formatter and use it to call of the functions needed to
+        format all of the collected data.
+        """
         # create export directory
         dir_path = self._output_directory + sep + self._output_folder_name
         if not path_exists(dir_path):
