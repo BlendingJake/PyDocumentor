@@ -219,13 +219,19 @@ class HtmlFormatter(Formatter):
         self.css = ""
 
     def free_run(self):
-        if self.options.add_css_to_each_file:
-            # generate in-line css
-            css_file_path = path_split(__file__)[0] + sep + "style.css"
-            css_file = open(css_file_path, 'r')
+        # generate in-line css
+        css_file_path = path_split(__file__)[0] + sep + "style.css"
+        css_file = open(css_file_path, 'r')
 
-            self.css = "".join([line for line in css_file.readlines()])
-            css_file.close()
+        self.css = "".join([line for line in css_file.readlines()])
+        css_file.close()
+
+        # write css to file
+        if not self.options.add_css_to_each_file:
+            new_fp = self.options.output_directory + sep + "style.css"
+            new_css_file = open(new_fp, "w")
+            new_css_file.write(self.css)
+            new_css_file.close()
 
     def top_of_file(self):
         if self.options.add_css_to_each_file:
@@ -272,15 +278,15 @@ class HtmlFormatter(Formatter):
 
     @classmethod
     def table_of_contents_class(cls, name, prefix="", indent=0):
-        return "<a href='#{}.{}'>{}.{}</a>".format(prefix, name, prefix, name)
+        return "<a href='#{}.{}'>{}.{}</a><br>".format(prefix, name, prefix, name)
 
     @classmethod
     def table_of_contents_class_start(cls, indent=0):
-        return "<div class='class'>"
+        return "<div class='table_of_contents_class'>"
 
     @classmethod
     def table_of_contents_constant(cls, name, prefix="", indent=0):
-        return "<a href='#{}.{}'>{}.{}</a>".format(prefix, name, prefix, name)
+        return "<a href='#{}.{}'>{}.{}</a><br>".format(prefix, name, prefix, name)
 
     @classmethod
     def table_of_contents_class_end(cls, indent=0):
@@ -381,6 +387,8 @@ class HtmlFormatter(Formatter):
 
     @classmethod
     def class_constant(cls, name, value, prefix="", indent=0):
+        if isinstance(value, str):
+            value = "\"{}\"".format(value)
         return "<a id='{}.{}' class='constant'>{} = {}</a><br>".format(prefix, name, name, value)
 
     @classmethod
@@ -402,7 +410,7 @@ class HtmlFormatter(Formatter):
 
     @classmethod
     def class_end(cls, indent=0):
-        return "</div"
+        return "</div>"
 
 
 class MarkdownFormatter(Formatter):
@@ -497,6 +505,8 @@ class MarkdownFormatter(Formatter):
 
     @classmethod
     def class_constant(cls, name, value, prefix="", indent=0):
+        if isinstance(value, str):
+            value = "\"{}\"".format(value)
         return "{}* <a name='{}.{}'>`{}`</a> = {}".format(cls._indentify(indent), prefix, name, name, value)
 
     # EXTRA TITLES
@@ -509,8 +519,10 @@ class MarkdownFormatter(Formatter):
         return "{}* ### Methods".format(cls._indentify(indent))
 
 
-class FormatOptions:
+class UserOptions:
     def __init__(self):
+        self.output_directory = ""
+        self.directory = ""
         self.add_css_to_each_file = True
 
 
@@ -524,7 +536,7 @@ class PyDocumentor:
         Analyze the doc string of a function and look for documentation for parameters and return values based on the
         same format that PyCharm uses.
         :param doc: func.__doc__ from the function
-        :return: a dictionary of {parameter name: doc}, also included are FUNCTION which includes the documentation 
+        :return: a dictionary of parameter_name -> doc, also included are FUNCTION which includes the documentation 
         not about the parameters, and RETURN.
         """
         data = {}
@@ -621,7 +633,7 @@ class PyDocumentor:
         """
         Collect format options and needed file/folder locations. Then collect the data from those files.
         """
-        self.f_options = FormatOptions()
+        self.options = UserOptions()
         self._collected_data = {}
         self._folder_mode = self._input_to_bool(self._user_input("Collect all files in folder Y/N",
                                                                  "Choice must be yes or no",
@@ -686,7 +698,7 @@ class PyDocumentor:
         """
         if self._folder_mode:
             folder_path = self._user_input("Folder Path", "Invalid folder path", isdir)
-            self._directory = folder_path
+            self.options.directory = folder_path
             self._file_paths = []
 
             # walk through sub-directories and collect python files
@@ -696,7 +708,7 @@ class PyDocumentor:
                         self._file_paths.append(dirpath + filename)
         else:
             file_path = self._user_input("File Path", "Invalid file path", isfile)
-            self._directory, _ = path_split(file_path)
+            self.options.directory , _ = path_split(file_path)
             self._file_paths = [file_path]
 
     def _collect_function_info(self, func: callable) -> dict:
@@ -752,7 +764,7 @@ class PyDocumentor:
         # output directory
         out_d = self._user_input("Output Directory (leave blank to export where modules are)", "Invalid directory",
                                  isdir)
-        self._output_directory = out_d if out_d != "" else self._directory
+        self.options.output_directory = out_d if out_d != "" else self.options.directory
 
         # export folder name
         self._output_folder_name = self._user_input("Output Folder Name")
@@ -774,9 +786,9 @@ class PyDocumentor:
 
         if self._advanced_mode:
             if self._output_format == self.HTML:
-                self.f_options.add_css_to_each_file = self._input_to_bool(self._user_input("Add CSS to each file Y/N",
+                self.options.add_css_to_each_file = self._input_to_bool(self._user_input("Add CSS to each file Y/N",
                                                                                            "Choice must be yes or no",
-                                                                                           lambda x: x.lower() in (
+                                                                                         lambda x: x.lower() in (
                                                                                                "yes", "no", "y", "n")))
 
             self._collect_private_methods = self._input_to_bool(
@@ -814,7 +826,7 @@ class PyDocumentor:
         format all of the collected data.
         """
         # create export directory
-        dir_path = self._output_directory + sep + self._output_folder_name
+        dir_path = self.options.output_directory + sep + self._output_folder_name
         if not path_exists(dir_path):
             try:
                 mkdir(dir_path)
@@ -825,9 +837,9 @@ class PyDocumentor:
         ft = None  # formatter
         if self._output_format == self.HTML:
             # self._export_as_html(dir_path)
-            ft = HtmlFormatter(self.f_options)
+            ft = HtmlFormatter(self.options)
         elif self._output_format == self.MARK_DOWN:
-            ft = MarkdownFormatter(self.f_options)
+            ft = MarkdownFormatter(self.options)
 
         formatted_data = {}  # file path: formatted string
         for file_path in self._collected_data:
@@ -849,8 +861,8 @@ class PyDocumentor:
                     out.append(ft.table_of_contents_function(func['name'], prefix=mod['name'], indent=1))
 
                 for cls in mod['classes']:
-                    out.append(ft.table_of_contents_class_start(indent=1))
                     out.append(ft.table_of_contents_class(cls['name'], prefix=mod['name'], indent=1))
+                    out.append(ft.table_of_contents_class_start(indent=1))
 
                     for const in cls['constants']:
                         out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'], indent=2))
