@@ -329,15 +329,11 @@ class HtmlFormatter(Formatter):
     def function_parameters(cls, parameters: list, indent=0):
         out = []
         for i in parameters:
-            if i['name'] not in ('self', 'cls'):
+            if i['name'] not in ('self', 'cls') and 'doc' in i and i['doc']:
                 if 'default' in i:
-                    out.append("<p class='parameter'><a>{} (optional):</a> {}</p>".format(
-                        i['name'],
-                        i['doc'] if 'doc' in i else ""
-                    ))
+                    out.append("<p class='parameter'><a>{} (optional):</a> {}</p>".format(i['name'], i['doc']))
                 else:
-                    out.append("<p class='parameter'><a>{}:</a> {}</p>".format(i['name'],
-                                                                               i['doc'] if 'doc' in i else ""))
+                    out.append("<p class='parameter'><a>{}:</a> {}</p>".format(i['name'], i['doc']))
 
         return "\n".join(out)
 
@@ -469,12 +465,11 @@ class MarkdownFormatter(Formatter):
     def function_parameters(cls, parameters: list, indent=0):
         out = []
         for i in parameters:
-            if i['name'] not in ('self', 'cls'):
+            if i['name'] not in ('self', 'cls') and 'doc' in i and i['doc']:
                 if 'default' in i:
-                    out.append("* `{}` (optional): {}".format(i['name'],
-                                                              i['doc'] if 'doc' in i else ""))
+                    out.append("* `{}` (optional): {}".format(i['name'], i['doc']))
                 else:
-                    out.append("* `{}`: {}".format(i['name'], i['doc'] if 'doc' in i else ""))
+                    out.append("* `{}`: {}".format(i['name'], i['doc']))
 
         # put indentation on first item
         if out:
