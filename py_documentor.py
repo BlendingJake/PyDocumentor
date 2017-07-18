@@ -522,13 +522,16 @@ class UserOptions:
     directory = ""
     output_directory = ""
     output_folder_name = ""
-    output_format = PyDocumentor.HTML
+    output_format = None
 
     table_of_contents = True
 
     # advanced options
     add_css_to_each_file = True
     collect_private_methods = False
+
+    modules_to_exclude = set()
+    classes_to_exclude = set()
 
 
 class PyDocumentor:
@@ -826,6 +829,81 @@ class PyDocumentor:
 
         return modules
 
+    def _valid_class_name(self, mod_cls_name: str) -> bool:
+        """
+        Check if the class exists within the given module
+        :param mod_cls_name: module and class name formatted as mod_name.cls_name
+        :return: whether the class exists in the specified module
+        """
+        mod_name, cls_name = mod_cls_name.split(".")
+        for mod in self._collected_data.values():
+            if mod['name'] == mod_name:
+                for cls in mod['classes']:
+                    if cls['name'] == cls_name:
+                        return True
+
+        return False
+
+    def _valid_module_name(self, mod_name: str) -> bool:
+        """
+        Check and see if the given module name exists in the collected data
+        :param mod_name: the module name to see if it exists
+        :return: whether or not a module with mod_name was collected
+        """
+        for mod in self._collected_data.values():
+            if mod['name'] == mod_name:
+                return True
+
+        return False
+
+    def display_overview(self):
+        """
+        Display the names of the modules collected and the classes in each        
+        """
+        print("\nCollected Modules & Classes:")
+
+        for mod in self._collected_data.values():
+            print("{}.py".format(mod['name']))
+
+            for cls in mod['classes']:
+                print("\t{}".format(cls['name']))
+
+    def exclude(self):
+        """
+        Allow the user to exclude modules and classes if in advanced mode        
+        """
+        if self.options.advanced_mode:
+            print()
+            ex = self._input_to_bool(self._user_input("Exclude modules or classes Y/N",
+                                                      "Choice must be yes or no",
+                                                      lambda x: x.lower() in ("y", "yes", "n", "no")))
+            print()
+
+            if ex:
+                self.display_overview()
+
+                cont = True
+                while cont:
+                    mod_name = self._user_input("Module to exclude (empty to finish)",
+                                                "That module name is not found",
+                                                lambda x: x == "" or self._valid_module_name(x))
+
+                    if mod_name:
+                        self.options.modules_to_exclude.add(mod_name)
+                    else:
+                        cont = False
+
+                cont = True
+                while cont:
+                    mod_cls_name = self._user_input("Class to exclude, enter module_name.class_name (empty to finish)",
+                                                    "That module name is not found",
+                                                    lambda x: x == "" or ("." in x and self._valid_class_name(x)))
+
+                    if mod_cls_name:
+                        self.options.classes_to_exclude.add(mod_cls_name)
+                    else:
+                        cont = False
+
     def export(self):
         """
         Create an export directory, then create the correct Formatter and use it to call of the functions needed to
@@ -850,76 +928,81 @@ class PyDocumentor:
         formatted_data = {}  # file path: formatted string
         for file_path in self._collected_data:
             mod = self._collected_data[file_path]
-            out = []
 
-            ft.free_run()
+            if mod['name'] not in self.options.modules_to_exclude:
+                out = []
 
-            out.append(ft.top_of_file())
-            out.append(ft.module_title(mod['name'], prefix="", indent=0))
-            out.append(ft.module_start(indent=0))
+                ft.free_run()
 
-            if self.options.table_of_contents:
-                out.append(ft.table_of_contents_start(indent=0))
-                out.append(ft.table_of_contents_title(prefix=mod['name'], indent=0))
-                out.append(ft.table_of_contents_body_start(indent=0))
+                out.append(ft.top_of_file())
+                out.append(ft.module_title(mod['name'], prefix="", indent=0))
+                out.append(ft.module_start(indent=0))
 
-                for func in mod['functions']:
-                    out.append(ft.table_of_contents_function(func['name'], prefix=mod['name'], indent=1))
+                if self.options.table_of_contents:
+                    out.append(ft.table_of_contents_start(indent=0))
+                    out.append(ft.table_of_contents_title(prefix=mod['name'], indent=0))
+                    out.append(ft.table_of_contents_body_start(indent=0))
+
+                    for func in mod['functions']:
+                        out.append(ft.table_of_contents_function(func['name'], prefix=mod['name'], indent=1))
+
+                    for cls in mod['classes']:
+                        if "{}.{}".format(mod['name'], cls['name']) not in self.options.classes_to_exclude:
+                            out.append(ft.table_of_contents_class(cls['name'], prefix=mod['name'], indent=1))
+                            out.append(ft.table_of_contents_class_start(indent=1))
+
+                            for const in cls['constants']:
+                                out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'], indent=2))
+
+                            for func in cls['static_methods']:
+                                out.append(ft.table_of_contents_function(func['name'], static=True, prefix=cls['name'],
+                                                                         indent=2))
+
+                            for func in cls['methods']:
+                                out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'], indent=2))
+
+                            out.append(ft.table_of_contents_class_end(indent=1))
+                    out.append(ft.table_of_contents_body_end(indent=0))
+                    out.append(ft.table_of_contents_end(indent=0))
+
+                if mod['functions']:
+                    self._format_functions(out, ft, mod['functions'], mod['name'], indent=1)
 
                 for cls in mod['classes']:
-                    out.append(ft.table_of_contents_class(cls['name'], prefix=mod['name'], indent=1))
-                    out.append(ft.table_of_contents_class_start(indent=1))
+                    if "{}.{}".format(mod['name'], cls['name']) not in self.options.classes_to_exclude:
+                        out.append(ft.class_start(indent=1))
+                        out.append(ft.class_title(cls['name'], prefix=mod['name'], indent=1))
+                        out.append(ft.class_body_start(indent=1))
+                        out.append(ft.class_doc(cls['doc'], indent=2))
 
-                    for const in cls['constants']:
-                        out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'], indent=2))
+                        if cls['constants']:
+                            out.append(ft.class_constants_title(indent=2))
+                            out.append(ft.class_constants_start(indent=2))
+                            for const in cls['constants']:
+                                out.append(ft.class_constant(const['name'], const['value'], prefix=cls['name'],
+                                                             indent=3))
+                            out.append(ft.class_constants_end(indent=2))
 
-                    for func in cls['static_methods']:
-                        out.append(ft.table_of_contents_function(func['name'], static=True, prefix=cls['name'],
-                                                                 indent=2))
+                        if cls['static_methods']:
+                            out.append(ft.static_function_title(indent=2))
+                            self._format_functions(out, ft, cls['static_methods'], cls['name'], indent=3)
 
-                    for func in cls['methods']:
-                        out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'], indent=2))
+                        if cls['methods']:
+                            out.append(ft.methods_title(indent=2))
+                            self._format_functions(out, ft, cls['methods'], cls['name'], indent=3)
 
-                    out.append(ft.table_of_contents_class_end(indent=1))
-                out.append(ft.table_of_contents_body_end(indent=0))
-                out.append(ft.table_of_contents_end(indent=0))
+                        out.append(ft.class_body_end(indent=1))
+                        out.append(ft.class_end(indent=1))
 
-            if mod['functions']:
-                self._format_functions(out, ft, mod['functions'], mod['name'], indent=1)
+                out.append(ft.module_end(indent=0))
 
-            for cls in mod['classes']:
-                out.append(ft.class_start(indent=1))
-                out.append(ft.class_title(cls['name'], prefix=mod['name'], indent=1))
-                out.append(ft.class_body_start(indent=1))
-                out.append(ft.class_doc(cls['doc'], indent=2))
+                # clean empty str
+                cleaned = []
+                for i in out:
+                    if i:
+                        cleaned.append(i)
 
-                if cls['constants']:
-                    out.append(ft.class_constants_title(indent=2))
-                    out.append(ft.class_constants_start(indent=2))
-                    for const in cls['constants']:
-                        out.append(ft.class_constant(const['name'], const['value'], prefix=cls['name'], indent=3))
-                    out.append(ft.class_constants_end(indent=2))
-
-                if cls['static_methods']:
-                    out.append(ft.static_function_title(indent=2))
-                    self._format_functions(out, ft, cls['static_methods'], cls['name'], indent=3)
-
-                if cls['methods']:
-                    out.append(ft.methods_title(indent=2))
-                    self._format_functions(out, ft, cls['methods'], cls['name'], indent=3)
-
-                out.append(ft.class_body_end(indent=1))
-                out.append(ft.class_end(indent=1))
-
-            out.append(ft.module_end(indent=0))
-
-            # clean empty str
-            cleaned = []
-            for i in out:
-                if i:
-                    cleaned.append(i)
-
-            formatted_data[file_path] = "\n".join(cleaned)
+                formatted_data[file_path] = "\n".join(cleaned)
 
         self._file_writer(dir_path, formatted_data, ft.FILE_EXT)
 
@@ -927,4 +1010,6 @@ class PyDocumentor:
 
 if __name__ == "__main__":
     docker = PyDocumentor()
+    docker.display_overview()
+    docker.exclude()
     docker.export()
