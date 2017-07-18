@@ -14,6 +14,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+py_documentor.py contains five different classes. The primary one is PyDocumentor, which uses the others.
+PyDocumentor gives access to a console-based program that takes Python files and creates documentation for them using
+class and function definitions and any available docstrings. To use, just run this module, or, create an instance of 
+PyDocumentor and then call its export() method.
+
+Extra information can be provided in the docstrings to help build better documentation. 
+:param name:, :return:, and :exclude: are all provided. param and return are for functions. Exclude can be used 
+in modules, classes, or functions.
+"""
+
 from os import walk, mkdir, sep
 from os.path import isfile, isdir, split as path_split, exists as path_exists, join as path_join
 import importlib.util
