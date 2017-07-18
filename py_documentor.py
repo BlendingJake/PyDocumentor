@@ -530,9 +530,6 @@ class UserOptions:
     add_css_to_each_file = True
     collect_private_methods = False
 
-    modules_to_exclude = set()
-    classes_to_exclude = set()
-
 
 class PyDocumentor:
     HTML, MARK_DOWN = [i for i in range(2)]
@@ -598,17 +595,18 @@ class PyDocumentor:
         """
         out.append(ft.function_block_start(indent=indent - 1))
         for func in funcs:
-            out.append(ft.function_start(indent=indent))
-            out.append(ft.function_signature(func['name'], func['parameters'], prefix=prefix, indent=indent))
-            out.append(ft.function_body_start(indent=indent))
-            out.append(ft.function_doc(func['doc'], indent=indent + 1))
-            out.append(ft.function_parameters(func['parameters'], indent=indent + 1))
+            if not func['exclude']:
+                out.append(ft.function_start(indent=indent))
+                out.append(ft.function_signature(func['name'], func['parameters'], prefix=prefix, indent=indent))
+                out.append(ft.function_body_start(indent=indent))
+                out.append(ft.function_doc(func['doc'], indent=indent + 1))
+                out.append(ft.function_parameters(func['parameters'], indent=indent + 1))
 
-            if func['return']:
-                out.append(ft.function_return_parameter(func['return'], indent=indent + 1))
+                if func['return']:
+                    out.append(ft.function_return_parameter(func['return'], indent=indent + 1))
 
-            out.append(ft.function_body_end(indent=indent))
-            out.append(ft.function_end(indent=indent))
+                out.append(ft.function_body_end(indent=indent))
+                out.append(ft.function_end(indent=indent))
         out.append(ft.function_block_end(indent=indent - 1))
 
     @staticmethod
@@ -619,6 +617,18 @@ class PyDocumentor:
         :return: a boolean of True for y or yes, else False
         """
         return yes_no in ("yes", "y")
+
+    @staticmethod
+    def _is_excluded(doc) -> bool:
+        """
+        Check if this doc has the proper excluded keyword which is :exclude:\n, note the newline is needed
+        :param doc: the doc to see if the module/class/function is excluded
+        :return: whether or not the module/class/function is excluded
+        """
+        if doc:
+            return re.search(":[ \t]*exclude[ \t]*:[ \t]*\n", doc) is None
+        else:
+            return False
 
     @staticmethod
     def _user_input(prompt: str, error="", validator=None) -> str:
@@ -674,7 +684,8 @@ class PyDocumentor:
             'constants': [],
             'static_methods': [],
             'doc': cls.__doc__.strip() if cls.__doc__ is not None else "",
-            'name': cls.__name__
+            'name': cls.__name__,
+            'exclude': self._is_excluded(cls.__doc__)
         }
         methods_functions = []
         method_dict = []
@@ -731,7 +742,8 @@ class PyDocumentor:
             'name': func.__name__,
             'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
             'parameters': [],
-            'return': docs['RETURN'].strip() if 'RETURN' in docs else ""
+            'return': docs['RETURN'].strip() if 'RETURN' in docs else "",
+            'exclude': self._is_excluded(func.__doc__)
         }
         sig = signature(func)
 
@@ -754,7 +766,13 @@ class PyDocumentor:
         :return: a dictionary with the keys shown below
         """
         inspected = getmembers(mod)
-        data = {'classes': [], 'functions': [], 'name': mod.__name__}
+        data = {
+            'classes': [],
+            'functions': [],
+            'name': mod.__name__,
+            'doc': mod.__doc__ if mod.__doc__ else "",
+            'exclude': self._is_excluded(mod.__doc__)
+        }
 
         for name, memb in inspected:
             if isclass(memb) and memb.__module__ == mod.__name__:
@@ -829,33 +847,6 @@ class PyDocumentor:
 
         return modules
 
-    def _valid_class_name(self, mod_cls_name: str) -> bool:
-        """
-        Check if the class exists within the given module
-        :param mod_cls_name: module and class name formatted as mod_name.cls_name
-        :return: whether the class exists in the specified module
-        """
-        mod_name, cls_name = mod_cls_name.split(".")
-        for mod in self._collected_data.values():
-            if mod['name'] == mod_name:
-                for cls in mod['classes']:
-                    if cls['name'] == cls_name:
-                        return True
-
-        return False
-
-    def _valid_module_name(self, mod_name: str) -> bool:
-        """
-        Check and see if the given module name exists in the collected data
-        :param mod_name: the module name to see if it exists
-        :return: whether or not a module with mod_name was collected
-        """
-        for mod in self._collected_data.values():
-            if mod['name'] == mod_name:
-                return True
-
-        return False
-
     def display_overview(self):
         """
         Display the names of the modules collected and the classes in each        
@@ -863,46 +854,16 @@ class PyDocumentor:
         print("\nCollected Modules & Classes:")
 
         for mod in self._collected_data.values():
-            print("{}.py".format(mod['name']))
+            if mod['exclude']:
+                print("{}.py (excluded)".format(mod['name']))
+            else:
+                print("{}.py".format(mod['name']))
 
             for cls in mod['classes']:
-                print("\t{}".format(cls['name']))
-
-    def exclude(self):
-        """
-        Allow the user to exclude modules and classes if in advanced mode        
-        """
-        if self.options.advanced_mode:
-            print()
-            ex = self._input_to_bool(self._user_input("Exclude modules or classes Y/N",
-                                                      "Choice must be yes or no",
-                                                      lambda x: x.lower() in ("y", "yes", "n", "no")))
-            print()
-
-            if ex:
-                self.display_overview()
-
-                cont = True
-                while cont:
-                    mod_name = self._user_input("Module to exclude (empty to finish)",
-                                                "That module name is not found",
-                                                lambda x: x == "" or self._valid_module_name(x))
-
-                    if mod_name:
-                        self.options.modules_to_exclude.add(mod_name)
-                    else:
-                        cont = False
-
-                cont = True
-                while cont:
-                    mod_cls_name = self._user_input("Class to exclude, enter module_name.class_name (empty to finish)",
-                                                    "That module name is not found",
-                                                    lambda x: x == "" or ("." in x and self._valid_class_name(x)))
-
-                    if mod_cls_name:
-                        self.options.classes_to_exclude.add(mod_cls_name)
-                    else:
-                        cont = False
+                if cls['exclude']:
+                    print("\t{} (excluded)".format(cls['name']))
+                else:
+                    print("\t{}".format(cls['name']))
 
     def export(self):
         """
@@ -929,7 +890,7 @@ class PyDocumentor:
         for file_path in self._collected_data:
             mod = self._collected_data[file_path]
 
-            if mod['name'] not in self.options.modules_to_exclude:
+            if not mod['exclude']:
                 out = []
 
                 ft.free_run()
@@ -944,10 +905,11 @@ class PyDocumentor:
                     out.append(ft.table_of_contents_body_start(indent=0))
 
                     for func in mod['functions']:
-                        out.append(ft.table_of_contents_function(func['name'], prefix=mod['name'], indent=1))
+                        if not func['exclude']:
+                            out.append(ft.table_of_contents_function(func['name'], prefix=mod['name'], indent=1))
 
                     for cls in mod['classes']:
-                        if "{}.{}".format(mod['name'], cls['name']) not in self.options.classes_to_exclude:
+                        if not cls['exclude']:
                             out.append(ft.table_of_contents_class(cls['name'], prefix=mod['name'], indent=1))
                             out.append(ft.table_of_contents_class_start(indent=1))
 
@@ -955,11 +917,14 @@ class PyDocumentor:
                                 out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'], indent=2))
 
                             for func in cls['static_methods']:
-                                out.append(ft.table_of_contents_function(func['name'], static=True, prefix=cls['name'],
-                                                                         indent=2))
+                                if not func['exclude']:
+                                    out.append(ft.table_of_contents_function(func['name'], static=True,
+                                                                             prefix=cls['name'], indent=2))
 
                             for func in cls['methods']:
-                                out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'], indent=2))
+                                if not func['exclude']:
+                                    out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'],
+                                                                             indent=2))
 
                             out.append(ft.table_of_contents_class_end(indent=1))
                     out.append(ft.table_of_contents_body_end(indent=0))
@@ -969,7 +934,7 @@ class PyDocumentor:
                     self._format_functions(out, ft, mod['functions'], mod['name'], indent=1)
 
                 for cls in mod['classes']:
-                    if "{}.{}".format(mod['name'], cls['name']) not in self.options.classes_to_exclude:
+                    if not cls['exclude']:
                         out.append(ft.class_start(indent=1))
                         out.append(ft.class_title(cls['name'], prefix=mod['name'], indent=1))
                         out.append(ft.class_body_start(indent=1))
@@ -1011,5 +976,4 @@ class PyDocumentor:
 if __name__ == "__main__":
     docker = PyDocumentor()
     docker.display_overview()
-    docker.exclude()
     docker.export()
