@@ -121,6 +121,17 @@ class Formatter:
         return ""
 
     @classmethod
+    def module_doc(cls, doc, prefix="", indent=0):
+        """
+        format the docstring for the module
+        :param doc: the doc for the module
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: the formatted docstring for the module
+        """
+        return ""
+
+    @classmethod
     def module_end(cls, indent=0):
         """
         Format the end of the body of the module
@@ -496,6 +507,10 @@ class HtmlFormatter(Formatter):
         return "<div class='module'>"
 
     @classmethod
+    def module_doc(cls, doc, prefix="", indent=0):
+        return "<p>{}</p>".format(doc)
+
+    @classmethod
     def module_end(cls, indent=0):
         return "</div>"
 
@@ -681,6 +696,19 @@ class MarkdownFormatter(Formatter):
     @classmethod
     def module_title(cls, title, prefix="", indent=0):
         return "# {}".format(title)
+
+    @classmethod
+    def module_doc(cls, doc, prefix="", indent=0):
+        # add > after each newline to make sure all the doc stays in the same block of text
+        doc_list = []
+        indent_str = cls._indentify(indent)
+
+        for i in doc:
+            doc_list.append(i)
+            if i == "\n":
+                doc_list.append("{}> ".format(indent_str))
+
+        return "{}> {}".format(indent_str, "".join(doc_list))
 
     # ---------------------------------------------------------------------------------
     # TABLE OF CONTENTS
@@ -1068,7 +1096,7 @@ class PyDocumentor:
             'classes': [],
             'functions': [],
             'name': mod.__name__,
-            'doc': mod.__doc__ if mod.__doc__ else "",
+            'doc': mod.__doc__.strip() if mod.__doc__ else "",
             'exclude': self._check_exclusion(mod.__doc__, 'exclude')
         }
 
@@ -1194,8 +1222,9 @@ class PyDocumentor:
                 ft.free_run()
 
                 out.append(ft.top_of_file())
-                out.append(ft.module_title(mod['name'], prefix="", indent=0))
+                out.append(ft.module_title(mod['name'], indent=0))
                 out.append(ft.module_start(indent=0))
+                out.append(ft.module_doc(mod['doc'], indent=1))
 
                 if self.options.table_of_contents:
                     out.append(ft.table_of_contents_start(indent=0))
