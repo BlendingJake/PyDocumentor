@@ -21,16 +21,22 @@ class and function definitions and any available docstrings. To use, just run th
 PyDocumentor and then call its export() method.
 
 Extra information can be provided in the docstrings to help build better documentation. 
-:param name:, :return:, :exclude:, :exclude_children:, and :exclude_methods: are all provided. Param and return are
-for functions only. Exclude_children and exclude_methods are only for classes. Otherwise, each can be used with either
-a module, class, or function.
+:param name:, :return: both work only with functions and allow more information to be added about those items
+:exclude: allows a module, class, or function to not be included in the documentation
+:exclude_children:, :exclude_methods: both wory only for classes and allow all constants and methods, or just methods
+to be excluded from the documentation
+:include func1, func2...: only for a class, allows specific functions to be included despite an exclude_methods. This 
+will also override and collect a private method even if that option is False.
 """
+
+# TODO: allow specific functions to be excluded for a class, using :exclude func1, func2...:
 
 from os import walk, mkdir, sep
 from os.path import isfile, isdir, split as path_split, exists as path_exists, join as path_join
 import importlib.util
 from inspect import getmembers, signature, isclass, isfunction, ismethod, Parameter
 import re
+from typing import Optional
 
 
 class Formatter:
@@ -64,7 +70,7 @@ class Formatter:
     # MISC
     # --------------------------------------------------------------------------------
     @classmethod
-    def general_function_signature(cls, func_name: str, parameters: dict) -> str:
+    def general_function_signature(cls, func_name: str, parameters: list) -> str:
         """
         The function signature used is the same no matter what format is being used. This generates that signature as 
         func_name(a, b, ..., x=3, y="2", *args, **kwargs)
@@ -653,6 +659,7 @@ class MarkdownFormatter(Formatter):
     An implementation of Formatter which formats everything in Markdown. Look at the notes on Formatter for method 
     specifics
     :exclude_methods:
+    :include _indentify:
     """
     FILE_EXT = '.md'
 
@@ -660,7 +667,12 @@ class MarkdownFormatter(Formatter):
     # MISC
     # ---------------------------------------------------------------------------------
     @classmethod
-    def _indentify(cls, indent):
+    def _indentify(cls, indent: int):
+        """
+        Take the indent amount and convert it to space to properly indent
+        :param indent: the levels of indentation
+        :return: two spaces for every level of indentation
+        """
         return "".join(["  " for _ in range(indent)])
 
     # ---------------------------------------------------------------------------------
@@ -759,6 +771,10 @@ class MarkdownFormatter(Formatter):
 
 
 class UserOptions:
+    """
+    Collect together all the user modifiable options in one class to provide easy access and a simple way to pass
+    these parameters into the formatter's.
+    """
     # basic options
     folder_mode = False
     advanced_mode = False
@@ -776,6 +792,10 @@ class UserOptions:
 
 
 class PyDocumentor:
+    """
+    Collect and export documentation in the appropriate format for whatever modules are specified in the console-based
+    interface. HTML and Markdown are both available as export formats.
+    """
     HTML, MARK_DOWN = [i for i in range(2)]
     FORMATS = [HTML, MARK_DOWN]
 
@@ -810,6 +830,19 @@ class PyDocumentor:
         return data
 
     @staticmethod
+    def _check_exclusion(doc, exclusion: str) -> bool:
+        """
+        Check and see if this doc contains :exclusion: where exclusion is the parameter. 
+        :param doc: the doc to see if the module/class/function is excluded
+        :param exclusion: the exclusion level to look for in exclude, exclude_children, exclude_methods
+        :return: whether the correct pattern is found in doc based on exclusion
+        """
+        if doc:
+            return re.search(":[ \t]*{}[ \t]*:[ \t]*\n".format(exclusion), doc) is not None
+        else:
+            return False
+
+    @staticmethod
     def _file_writer(output_dir: str, data: dict, file_ext: str):
         """
         Take the data and write it to output_dir
@@ -828,20 +861,20 @@ class PyDocumentor:
             file.close()
 
     @staticmethod
-    def _format_functions(out: list, ft, funcs: list, prefix: str, indent: int):
+    def _format_functions(out: list, ft, funcs: list, cls: dict, indent: int):
         """
         Execute the proper Formatter function calls to add this block of functions to out
         :param out: the list being used to collected all the formatted data
         :param ft: the Formatter class to use to format the data
         :param funcs: a list of the functions to format
-        :param prefix: the name of the parent module for links
+        :param cls: the class
         :param indent: the indentation of this block of functions
         """
         out.append(ft.function_block_start(indent=indent - 1))
         for func in funcs:
-            if not func['exclude']:
+            if (not cls['exclude_methods'] or func['name'] in cls['include']) and not func['exclude']:
                 out.append(ft.function_start(indent=indent))
-                out.append(ft.function_signature(func['name'], func['parameters'], prefix=prefix, indent=indent))
+                out.append(ft.function_signature(func['name'], func['parameters'], prefix=cls['name'], indent=indent))
                 out.append(ft.function_body_start(indent=indent))
                 out.append(ft.function_doc(func['doc'], indent=indent + 1))
                 out.append(ft.function_parameters(func['parameters'], indent=indent + 1))
@@ -854,6 +887,36 @@ class PyDocumentor:
         out.append(ft.function_block_end(indent=indent - 1))
 
     @staticmethod
+    def _get_exclusion_level(memb: dict) -> Optional[str]:
+        """
+        Get the broadest exclusion level in memb if there is one at all
+        :param memb: the module/class/function to see it it is excluded in some way
+        :return: the broadest level of exclusion, or None
+        """
+        ordered_levels = ['exclude', 'exclude_children', 'exclude_methods']
+        for level in ordered_levels:
+            if level in memb and memb[level]:
+                return level
+
+        return None
+
+    @staticmethod
+    def _get_inclusion(doc) -> set:
+        """
+        get a list of the included functions for a class if they are specified
+        :param doc: the doc to look through for included functions
+        :return: a list of the names of the included functions
+        """
+        out = set()
+        if doc:
+            match = re.search(":\s*include\s*((?:\s*\w+\s*)(?:,\s*\w+\s*)*):[ \t]*\n", doc)
+
+            if match:
+                out = set([i.strip() for i in match.group(1).split(",")])
+
+        return out
+
+    @staticmethod
     def _input_to_bool(yes_no: str) -> bool:
         """
         Go from a yes/no response to a boolean
@@ -861,19 +924,6 @@ class PyDocumentor:
         :return: a boolean of True for y or yes, else False
         """
         return yes_no in ("yes", "y")
-
-    @staticmethod
-    def _check_exclusion(doc, exclusion) -> bool:
-        """
-        Check and see if this doc contains :exclusion: where exclusion is the parameter. 
-        :param doc: the doc to see if the module/class/function is excluded
-        :param exclusion: the exclusion level to look for in exclude, exclude_children, exclude_methods
-        :return: whether the correct pattern is found in doc based on exclusion
-        """
-        if doc:
-            return re.search(":[ \t]*{}[ \t]*:[ \t]*\n".format(exclusion), doc) is not None
-        else:
-            return False
 
     @staticmethod
     def _user_input(prompt: str, error="", validator=None) -> str:
@@ -932,7 +982,8 @@ class PyDocumentor:
             'name': cls.__name__,
             'exclude': self._check_exclusion(cls.__doc__, "exclude"),
             'exclude_methods': self._check_exclusion(cls.__doc__, 'exclude_methods'),
-            'exclude_children': self._check_exclusion(cls.__doc__, 'exclude_children')
+            'exclude_children': self._check_exclusion(cls.__doc__, 'exclude_children'),
+            'include': self._get_inclusion(cls.__doc__)
         }
         methods_functions = []
         method_dict = []
@@ -951,9 +1002,9 @@ class PyDocumentor:
         for name, memb in methods_functions:
             if name in method_dict:
                 if isinstance(method_dict[name], staticmethod):
-                    if self.options.collect_private_methods or name[0] != "_":
+                    if self.options.collect_private_methods or name[0] != "_" or memb.__name__ in data['include']:
                         data['static_methods'].append(self._collect_function_info(memb))
-                elif self.options.collect_private_methods or name[0] != '_':
+                elif self.options.collect_private_methods or name[0] != '_' or memb.__name__ in data['include']:
                     data['methods'].append(self._collect_function_info(memb))
 
         return data
@@ -1101,14 +1152,14 @@ class PyDocumentor:
         print("\nCollected Modules & Classes:")
 
         for mod in self._collected_data.values():
-            if mod['exclude']:
-                print("{}.py (excluded)".format(mod['name']))
+            if self._get_exclusion_level(mod) is not None:
+                print("{}.py ({})".format(mod['name'], self._get_exclusion_level(mod)))
             else:
                 print("{}.py".format(mod['name']))
 
             for cls in mod['classes']:
-                if cls['exclude']:
-                    print("\t{} (excluded)".format(cls['name']))
+                if self._get_exclusion_level(cls) is not None:
+                    print("\t{} ({})".format(cls['name'], self._get_exclusion_level(cls)))
                 else:
                     print("\t{}".format(cls['name']))
 
@@ -1166,16 +1217,17 @@ class PyDocumentor:
                                     out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'],
                                                                              indent=2))
 
-                                if not cls['exclude_methods']:
-                                    for func in cls['static_methods']:
-                                        if not func['exclude']:
-                                            out.append(ft.table_of_contents_function(func['name'], static=True,
-                                                                                     prefix=cls['name'], indent=2))
+                                for func in cls['static_methods']:
+                                    if (not cls['exclude_methods'] or func['name'] in cls['include']) and not \
+                                            func['exclude']:
+                                        out.append(ft.table_of_contents_function(func['name'], static=True,
+                                                                                 prefix=cls['name'], indent=2))
 
-                                    for func in cls['methods']:
-                                        if not func['exclude']:
-                                            out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'],
-                                                                                     indent=2))
+                                for func in cls['methods']:
+                                    if (not cls['exclude_methods'] or func['name'] in cls['include']) and not \
+                                            func['exclude']:
+                                        out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'],
+                                                                                 indent=2))
 
                                 out.append(ft.table_of_contents_class_end(indent=1))
                     out.append(ft.table_of_contents_body_end(indent=0))
@@ -1200,14 +1252,13 @@ class PyDocumentor:
                                                                  indent=3))
                                 out.append(ft.class_constants_end(indent=2))
 
-                            if not cls['exclude_methods']:
-                                if cls['static_methods']:
-                                    out.append(ft.static_function_title(indent=2))
-                                    self._format_functions(out, ft, cls['static_methods'], cls['name'], indent=3)
+                        if not cls['exclude_methods'] or (cls['static_methods'] and cls['include']):
+                            out.append(ft.static_function_title(indent=2))
+                            self._format_functions(out, ft, cls['static_methods'], cls, indent=3)
 
-                                if cls['methods']:
-                                    out.append(ft.methods_title(indent=2))
-                                    self._format_functions(out, ft, cls['methods'], cls['name'], indent=3)
+                        if not cls['exclude_methods'] or (cls['methods'] and cls['include']):
+                            out.append(ft.methods_title(indent=2))
+                            self._format_functions(out, ft, cls['methods'], cls, indent=3)
 
                         out.append(ft.class_body_end(indent=1))
                         out.append(ft.class_end(indent=1))
