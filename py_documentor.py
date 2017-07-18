@@ -515,10 +515,20 @@ class MarkdownFormatter(Formatter):
 
 
 class UserOptions:
-    def __init__(self):
-        self.output_directory = ""
-        self.directory = ""
-        self.add_css_to_each_file = True
+    # basic options
+    folder_mode = False
+    advanced_mode = False
+
+    directory = ""
+    output_directory = ""
+    output_folder_name = ""
+    output_format = PyDocumentor.HTML
+
+    table_of_contents = True
+
+    # advanced options
+    add_css_to_each_file = True
+    collect_private_methods = False
 
 
 class PyDocumentor:
@@ -630,12 +640,13 @@ class PyDocumentor:
         """
         self.options = UserOptions()
         self._collected_data = {}
-        self._folder_mode = self._input_to_bool(self._user_input("Collect all files in folder Y/N",
-                                                                 "Choice must be yes or no",
-                                                                 lambda x: x.lower() in ("yes", "no", "y", "n")))
-        self._advanced_mode = self._input_to_bool(self._user_input("Enter advanced mode Y/N",
-                                                                   "Choice must be yes or no",
-                                                                   lambda x: x.lower() in ("yes", "no", "y", "n")))
+        self.options.folder_mode = self._input_to_bool(self._user_input("Collect all files in folder Y/N",
+                                                                        "Choice must be yes or no",
+                                                                        lambda x: x.lower() in ("yes", "no", "y", "n")))
+        self.options.advanced_mode = self._input_to_bool(self._user_input("Enter advanced mode Y/N",
+                                                                          "Choice must be yes or no",
+                                                                          lambda x: x.lower() in ("yes", "no", "y", "n"
+                                                                                                  )))
         print()
 
         self._collect_file_names()
@@ -679,9 +690,9 @@ class PyDocumentor:
         for name, memb in methods_functions:
             if name in method_dict:
                 if isinstance(method_dict[name], staticmethod):
-                    if self._collect_private_methods or (not self._collect_private_methods and name[0] != '_'):
+                    if self.options.collect_private_methods or name[0] != "_":
                         data['static_methods'].append(self._collect_function_info(memb))
-                elif self._collect_private_methods or (not self._collect_private_methods and name[0] != '_'):
+                elif self.options.collect_private_methods or name[0] != '_':
                     data['methods'].append(self._collect_function_info(memb))
 
         return data
@@ -691,7 +702,7 @@ class PyDocumentor:
         Collect all the file names for the modules that will have documentation created. If in folder_mode, then
         walk through the folder and all of its child folders recursively, collecting all Python files.
         """
-        if self._folder_mode:
+        if self.options.folder_mode:
             folder_path = self._user_input("Folder Path", "Invalid folder path", isdir)
             self.options.directory = folder_path
             self._file_paths = []
@@ -703,7 +714,7 @@ class PyDocumentor:
                         self._file_paths.append(dirpath + filename)
         else:
             file_path = self._user_input("File Path", "Invalid file path", isfile)
-            self.options.directory , _ = path_split(file_path)
+            self.options.directory, _ = path_split(file_path)
             self._file_paths = [file_path]
 
     def _collect_function_info(self, func: callable) -> dict:
@@ -747,7 +758,7 @@ class PyDocumentor:
                 data['classes'].append(self._collect_class_info(memb))
             # if this is a function, make sure it wasn't imported, and that it isn't private
             elif isfunction(memb) and memb.__module__ == mod.__name__:
-                if self._collect_private_methods or (not self._collect_private_methods and name[0] != "_"):
+                if self.options.collect_private_methods or name[0] != "_":
                     data['functions'].append(self._collect_function_info(memb))
 
         return data
@@ -762,35 +773,35 @@ class PyDocumentor:
         self.options.output_directory = out_d if out_d != "" else self.options.directory
 
         # export folder name
-        self._output_folder_name = self._user_input("Output Folder Name")
+        self.options.output_folder_name = self._user_input("Output Folder Name")
         print()
 
         # export format
-        self._output_format = int(self._user_input("Output Format (HTML=0, Markdown=1)",
-                                                   "Value must be number between 0-{}".format(len(self.FORMATS) - 1),
-                                                   lambda x: x.isdigit() and int(x) in self.FORMATS))
+        self.options.output_format = int(self._user_input("Output Format (HTML=0, Markdown=1)",
+                                                          "Value must be number between 0-{}".format(
+                                                              len(self.FORMATS) - 1),
+                                                          lambda x: x.isdigit() and int(x) in self.FORMATS))
 
         # add table of contents per page
-        self._table_of_contents = self._input_to_bool(self._user_input("Add table of contents to each file Y/N",
-                                                                       "Choice must be yes or no",
-                                                                       lambda x: x.lower() in ("yes", "no", "y", "n")))
+        self.options.table_of_contents = self._input_to_bool(self._user_input("Add table of contents to each file Y/N",
+                                                                              "Choice must be yes or no",
+                                                                              lambda x: x.lower() in ("yes", "no", "y",
+                                                                                                      "n")))
         print()
 
         # ADVANCED OPTIONS
-        self._collect_private_methods = False
+        if self.options.advanced_mode:
+            # format independent
+            self.options.collect_private_methods = self._input_to_bool(
+                self._user_input("Collect methods prefixed with '_' Y/N",
+                                 "Choice must be yes or no", lambda x: x.lower() in ("yes", "no", "y", "n")))
 
-        if self._advanced_mode:
-            if self._output_format == self.HTML:
+            # format dependent
+            if self.options.output_format == self.HTML:
                 self.options.add_css_to_each_file = self._input_to_bool(self._user_input("Add CSS to each file Y/N",
-                                                                                           "Choice must be yes or no",
+                                                                                         "Choice must be yes or no",
                                                                                          lambda x: x.lower() in (
                                                                                                "yes", "no", "y", "n")))
-
-            self._collect_private_methods = self._input_to_bool(
-                self._user_input("Collect methods prefixed with '_' Y/N",
-                                 "Choice must be yes or no",
-                                 lambda x: x.lower() in ("yes", "no", "y", "n")
-                                 ))
 
     def _import_modules(self) -> list:
         """
@@ -821,7 +832,7 @@ class PyDocumentor:
         format all of the collected data.
         """
         # create export directory
-        dir_path = self.options.output_directory + sep + self._output_folder_name
+        dir_path = self.options.output_directory + sep + self.options.output_folder_name
         if not path_exists(dir_path):
             try:
                 mkdir(dir_path)
@@ -830,10 +841,10 @@ class PyDocumentor:
                 exit()
 
         ft = None  # formatter
-        if self._output_format == self.HTML:
+        if self.options.output_format == self.HTML:
             # self._export_as_html(dir_path)
             ft = HtmlFormatter(self.options)
-        elif self._output_format == self.MARK_DOWN:
+        elif self.options.output_format == self.MARK_DOWN:
             ft = MarkdownFormatter(self.options)
 
         formatted_data = {}  # file path: formatted string
@@ -847,7 +858,7 @@ class PyDocumentor:
             out.append(ft.module_title(mod['name'], prefix="", indent=0))
             out.append(ft.module_start(indent=0))
 
-            if self._table_of_contents:
+            if self.options.table_of_contents:
                 out.append(ft.table_of_contents_start(indent=0))
                 out.append(ft.table_of_contents_title(prefix=mod['name'], indent=0))
                 out.append(ft.table_of_contents_body_start(indent=0))
