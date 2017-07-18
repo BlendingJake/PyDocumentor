@@ -21,8 +21,9 @@ class and function definitions and any available docstrings. To use, just run th
 PyDocumentor and then call its export() method.
 
 Extra information can be provided in the docstrings to help build better documentation. 
-:param name:, :return:, and :exclude: are all provided. param and return are for functions. Exclude can be used 
-in modules, classes, or functions.
+:param name:, :return:, :exclude:, :exclude_children:, and :exclude_methods: are all provided. Param and return are
+for functions only. Exclude_children and exclude_methods are only for classes. Otherwise, each can be used with either
+a module, class, or function.
 """
 
 from os import walk, mkdir, sep
@@ -630,14 +631,15 @@ class PyDocumentor:
         return yes_no in ("yes", "y")
 
     @staticmethod
-    def _is_excluded(doc) -> bool:
+    def _check_exclusion(doc, exclusion) -> bool:
         """
-        Check if this doc has the proper excluded keyword which is :exclude:\n, note the newline is needed
+        Check and see if this doc contains :exclusion: where exclusion is the parameter. 
         :param doc: the doc to see if the module/class/function is excluded
-        :return: whether or not the module/class/function is excluded
+        :param exclusion: the exclusion level to look for in exclude, exclude_children, exclude_methods
+        :return: whether the correct pattern is found in doc based on exclusion
         """
         if doc:
-            return re.search(":[ \t]*exclude[ \t]*:[ \t]*\n", doc) is None
+            return re.search(":[ \t]*{}[ \t]*:[ \t]*\n".format(exclusion), doc) is None
         else:
             return False
 
@@ -696,7 +698,9 @@ class PyDocumentor:
             'static_methods': [],
             'doc': cls.__doc__.strip() if cls.__doc__ is not None else "",
             'name': cls.__name__,
-            'exclude': self._is_excluded(cls.__doc__)
+            'exclude': self._check_exclusion(cls.__doc__, "exclude"),
+            'exclude_methods': self._check_exclusion(cls.__doc__, 'exclude_methods'),
+            'exclude_children': self._check_exclusion(cls.__doc__, 'exclude_children')
         }
         methods_functions = []
         method_dict = []
@@ -754,7 +758,7 @@ class PyDocumentor:
             'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
             'parameters': [],
             'return': docs['RETURN'].strip() if 'RETURN' in docs else "",
-            'exclude': self._is_excluded(func.__doc__)
+            'exclude': self._check_exclusion(func.__doc__, 'exclude')
         }
         sig = signature(func)
 
@@ -782,7 +786,7 @@ class PyDocumentor:
             'functions': [],
             'name': mod.__name__,
             'doc': mod.__doc__ if mod.__doc__ else "",
-            'exclude': self._is_excluded(mod.__doc__)
+            'exclude': self._check_exclusion(mod.__doc__, 'exclude')
         }
 
         for name, memb in inspected:
@@ -922,22 +926,26 @@ class PyDocumentor:
                     for cls in mod['classes']:
                         if not cls['exclude']:
                             out.append(ft.table_of_contents_class(cls['name'], prefix=mod['name'], indent=1))
-                            out.append(ft.table_of_contents_class_start(indent=1))
 
-                            for const in cls['constants']:
-                                out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'], indent=2))
+                            if not cls['exclude_children']:
+                                out.append(ft.table_of_contents_class_start(indent=1))
 
-                            for func in cls['static_methods']:
-                                if not func['exclude']:
-                                    out.append(ft.table_of_contents_function(func['name'], static=True,
-                                                                             prefix=cls['name'], indent=2))
-
-                            for func in cls['methods']:
-                                if not func['exclude']:
-                                    out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'],
+                                for const in cls['constants']:
+                                    out.append(ft.table_of_contents_constant(const['name'], prefix=cls['name'],
                                                                              indent=2))
 
-                            out.append(ft.table_of_contents_class_end(indent=1))
+                                if not cls['exclude_methods']:
+                                    for func in cls['static_methods']:
+                                        if not func['exclude']:
+                                            out.append(ft.table_of_contents_function(func['name'], static=True,
+                                                                                     prefix=cls['name'], indent=2))
+
+                                    for func in cls['methods']:
+                                        if not func['exclude']:
+                                            out.append(ft.table_of_contents_function(func['name'], prefix=cls['name'],
+                                                                                     indent=2))
+
+                                out.append(ft.table_of_contents_class_end(indent=1))
                     out.append(ft.table_of_contents_body_end(indent=0))
                     out.append(ft.table_of_contents_end(indent=0))
 
@@ -951,21 +959,23 @@ class PyDocumentor:
                         out.append(ft.class_body_start(indent=1))
                         out.append(ft.class_doc(cls['doc'], indent=2))
 
-                        if cls['constants']:
-                            out.append(ft.class_constants_title(indent=2))
-                            out.append(ft.class_constants_start(indent=2))
-                            for const in cls['constants']:
-                                out.append(ft.class_constant(const['name'], const['value'], prefix=cls['name'],
-                                                             indent=3))
-                            out.append(ft.class_constants_end(indent=2))
+                        if not cls['exclude_children']:
+                            if cls['constants']:
+                                out.append(ft.class_constants_title(indent=2))
+                                out.append(ft.class_constants_start(indent=2))
+                                for const in cls['constants']:
+                                    out.append(ft.class_constant(const['name'], const['value'], prefix=cls['name'],
+                                                                 indent=3))
+                                out.append(ft.class_constants_end(indent=2))
 
-                        if cls['static_methods']:
-                            out.append(ft.static_function_title(indent=2))
-                            self._format_functions(out, ft, cls['static_methods'], cls['name'], indent=3)
+                            if not cls['exclude_methods']:
+                                if cls['static_methods']:
+                                    out.append(ft.static_function_title(indent=2))
+                                    self._format_functions(out, ft, cls['static_methods'], cls['name'], indent=3)
 
-                        if cls['methods']:
-                            out.append(ft.methods_title(indent=2))
-                            self._format_functions(out, ft, cls['methods'], cls['name'], indent=3)
+                                if cls['methods']:
+                                    out.append(ft.methods_title(indent=2))
+                                    self._format_functions(out, ft, cls['methods'], cls['name'], indent=3)
 
                         out.append(ft.class_body_end(indent=1))
                         out.append(ft.class_end(indent=1))
