@@ -34,22 +34,45 @@ import re
 
 
 class Formatter:
-    FILE_EXT = ""
+    """
+    Basic class to provide a backbone for any format classes. Guarantees that all method calls work within
+    PyDocumentor.export(), even if the individual format classes don't implement that specific method.
+    """
+    FILE_EXT = ""  # file extension for the format
 
     def __init__(self, options):
+        """
+        Take in the user options from PyDocumentor to provide a way for things like adding css to each html file
+        :param options: a collection of all the user options
+        """
         self.options = options
 
-    def free_run(self) -> None:
+    def free_run(self):
+        """
+        Run at the beginning of the module, before anything is formatted.
+        """
         pass
 
     def top_of_file(self) -> str:
+        """
+        Returns a string for the very top of the module file. This call happens right after free_run() is called
+        :return: 
+        """
         return ""
 
     # --------------------------------------------------------------------------------
     # MISC
     # --------------------------------------------------------------------------------
     @classmethod
-    def general_function_signature(cls, func_name, parameters):
+    def general_function_signature(cls, func_name: str, parameters: dict) -> str:
+        """
+        The function signature used is the same no matter what format is being used. This generates that signature as 
+        func_name(a, b, ..., x=3, y="2", *args, **kwargs)
+        :param func_name: the name of the function
+        :param parameters: a dictionary of the parameters of this function. Formatted as collected by
+        PyDocumentor._collect_function_info()
+        :return: the function signature
+        """
         title = "{}(".format(func_name)
         params = []
 
@@ -73,14 +96,31 @@ class Formatter:
     # ---------------------------------------------------------------------------------
     @classmethod
     def module_title(cls, title, prefix="", indent=0):
+        """
+        Format the title/header of the module
+        :param title: the name of the module
+        :param prefix: parent's name
+        :param indent: how much to indent
+        :return: the formatted title/header of the module
+        """
         return ""
 
     @classmethod
     def module_start(cls, indent=0):
+        """
+        Start the body of the module
+        :param indent: how much to indent
+        :return: the formatted start of the body of the module
+        """
         return ""
 
     @classmethod
     def module_end(cls, indent=0):
+        """
+        Format the end of the body of the module
+        :param indent: how much to indent 
+        :return: the formatted end of the body of the module
+        """
         return ""
 
     # ---------------------------------------------------------------------------------
@@ -88,42 +128,100 @@ class Formatter:
     # ---------------------------------------------------------------------------------
     @classmethod
     def table_of_contents_start(cls, indent=0):
+        """
+        format the start of the table of contents
+        :param indent: how much to indent
+        :return: the formatted start of the table of contents
+        """
         return ""
 
     @classmethod
     def table_of_contents_title(cls, prefix="", indent=0):
+        """
+        format the title of the table of contents, typically this is Table of Contents
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: the formatted title of the table of contents
+        """
         return ""
 
     @classmethod
     def table_of_contents_body_start(cls, indent=0):
+        """
+        format the start of the body of the table of contents
+        :param indent: how much to indent
+        :return: the formatted start of the body of the table of contents
+        """
         return ""
 
     @classmethod
     def table_of_contents_function(cls, name, static=False, prefix="", indent=0):
+        """
+        format a function in the table of contents
+        :param name: the name of the function
+        :param static: whether the function is static or not
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: the formatted function
+        """
         return ""
 
     @classmethod
     def table_of_contents_class(cls, name, prefix="", indent=0):
+        """
+        format the class for the table of contents
+        :param name: the name of the class
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: the formatted class 
+        """
         return ""
 
     @classmethod
     def table_of_contents_class_start(cls, indent=0):
+        """
+        format the start of the body of a class in the table of contents, can be used to indent methods
+        :param indent: how much to indent
+        :return: the formatted start of the body of the class
+        """
         return ""
 
     @classmethod
     def table_of_contents_constant(cls, name, prefix="", indent=0):
+        """
+        format a constant/field for the table of contents
+        :param name: the name of the constant/field
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: the formatted constant/field
+        """
         return ""
 
     @classmethod
     def table_of_contents_class_end(cls, indent=0):
+        """
+        format the end of a class in the table of contents
+        :param indent: how much to indent
+        :return: the formatted end of a class
+        """
         return ""
 
     @classmethod
     def table_of_contents_body_end(cls, indent=0):
+        """
+        format the end of the body of the table of contents
+        :param indent: how much to indent
+        :return: the formatted end of the body of the table of contents
+        """
         return ""
 
     @classmethod
     def table_of_contents_end(cls, indent=0):
+        """
+        format the end of the table of contents
+        :param indent: how much to indent
+        :return: the formatted end of the table of contents
+        """
         return ""
 
     # ---------------------------------------------------------------------------------
@@ -131,42 +229,98 @@ class Formatter:
     # ---------------------------------------------------------------------------------
     @classmethod
     def function_block_start(cls, indent=0):
+        """
+        format the start of a group of functions
+        :param indent: how much to indent
+        :return: formatted start of a group of functions
+        """
         return ""
 
     @classmethod
     def function_start(cls, indent=0):
+        """
+        format the start of an individual function
+        :param indent: how much to indent
+        :return: formatted start of a function
+        """
         return ""
 
     @classmethod
     def function_signature(cls, func_name: str, parameters: list, prefix="", indent=0):
+        """
+        format the function signature, typically calls general_function_signature()
+        :param func_name: the name of the function
+        :param parameters: the function's parameters
+        :param prefix: the parent's name
+        :param indent: how much to indent 
+        :return: formatted signature of the function
+        """
         return ""
 
     @classmethod
     def function_body_start(cls, indent=0):
+        """
+        format the start of the body of a function where the doc and parameters go
+        :param indent: how much to indent
+        :return: formatted start of the body of a function
+        """
         return ""
 
     @classmethod
     def function_doc(cls, func_doc: str, indent=0):
+        """
+        format the docstring of the function
+        :param func_doc: the docstring of the function
+        :param indent: how much to indent
+        :return: formatted docstring
+        """
         return ""
 
     @classmethod
     def function_parameters(cls, parameters: list, indent=0):
+        """
+        format the parameters of the function each with their own docstring if it exists
+        :param parameters: the list of parameters of the function
+        :param indent: how much to indent
+        :return: formatted list of parameters
+        """
         return ""
 
     @classmethod
     def function_return_parameter(cls, return_doc, indent=0):
+        """
+        format the return parameter of the function
+        :param return_doc: the return parameters documentation
+        :param indent: how much to indent
+        :return: formatted return parameter
+        """
         return ""
 
     @classmethod
     def function_body_end(cls, indent=0):
+        """
+        format the end of the body of the function
+        :param indent: how much to indent
+        :return: formatted end of the body of the function
+        """
         return ""
 
     @classmethod
     def function_end(cls, indent=0):
+        """
+        format the end of the function
+        :param indent: how much to indent
+        :return: formatted end of function
+        """
         return ""
 
     @classmethod
     def function_block_end(cls, indent=0):
+        """
+        format the end of a group of functions
+        :param indent: how much to indent
+        :return: formatted end of a group of functions
+        """
         return ""
 
     # ---------------------------------------------------------------------------------
@@ -174,56 +328,129 @@ class Formatter:
     # ---------------------------------------------------------------------------------
     @classmethod
     def class_start(cls, indent=0):
+        """
+        format the start of a class
+        :param indent: how much to indent
+        :return: formatted start of class
+        """
         return ""
 
     @classmethod
     def class_title(cls, title, prefix="", indent=0):
+        """
+        format the name of the class
+        :param title: the name of the class
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: formatted name/header/title of the class
+        """
         return ""
 
     @classmethod
     def class_body_start(cls, indent=0):
+        """
+        format the start of the body of the class
+        :param indent: how much to indent
+        :return: formatted start of the body of the class
+        """
         return ""
 
     @classmethod
     def class_doc(cls, doc, indent=0):
+        """
+        format the docstring of the class
+        :param doc: docstring of the class
+        :param indent: how much to indent
+        :return: formatted docstring of the class
+        """
         return ""
 
     # CONSTANTS
     @classmethod
     def class_constants_title(cls, prefix="", indent=0):
+        """
+        format the title of the constants section for a class, typically just Constants
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: formatted title of the constants section
+        """
         return ""
 
     @classmethod
     def class_constants_start(cls, indent=0):
+        """
+        format the start of the constants section of a class
+        :param indent: how much to indent
+        :return: formatted start of the constants section
+        """
         return ""
 
     @classmethod
     def class_constant(cls, name, value, prefix="", indent=0):
+        """
+        format a constant in a class
+        :param name: the name of the constant
+        :param value: the constants value
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: formatted constant
+        """
         return ""
 
     @classmethod
     def class_constants_end(cls, indent=0):
+        """
+        format the end of the constants section
+        :param indent: how much to indent
+        :return: formatted end of the constants section
+        """
         return ""
 
     # EXTRA TITLES
     @classmethod
     def static_function_title(cls, prefix="", indent=0):
+        """
+        format the title of the static methods section in a class, typically Static Methods
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: formatted title of the static methods section
+        """
         return ""
 
     @classmethod
     def methods_title(cls, prefix="", indent=0):
+        """
+        format the title for the methods section in a class, typically Methods
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: formatted title for the methods section
+        """
         return ""
 
     @classmethod
     def class_body_end(cls, indent=0):
+        """
+        format the end of the body of a class
+        :param indent: how much to indent
+        :return: formatted end of the body of a class
+        """
         return ""
 
     @classmethod
     def class_end(cls, indent=0):
+        """
+        format the end of a class
+        :param indent: how much to indent
+        :return: formatted end of a class
+        """
         return ""
 
 
 class HtmlFormatter(Formatter):
+    """
+    An implementation of Formatter which formats everything in HTML. Look at the notes on Formatter for method specifics
+    :exclude_methods:
+    """
     FILE_EXT = ".html"
 
     def __init__(self, options):
@@ -422,6 +649,11 @@ class HtmlFormatter(Formatter):
 
 
 class MarkdownFormatter(Formatter):
+    """
+    An implementation of Formatter which formats everything in Markdown. Look at the notes on Formatter for method 
+    specifics
+    :exclude_methods:
+    """
     FILE_EXT = '.md'
 
     # ---------------------------------------------------------------------------------
@@ -491,7 +723,7 @@ class MarkdownFormatter(Formatter):
 
     @classmethod
     def function_return_parameter(cls, return_doc, indent=0):
-        return "{}* return: {}".format(cls._indentify(indent), return_doc)
+        return "{}* `return:` {}".format(cls._indentify(indent), return_doc)
 
     # ---------------------------------------------------------------------------------
     # CLASSES
@@ -639,7 +871,7 @@ class PyDocumentor:
         :return: whether the correct pattern is found in doc based on exclusion
         """
         if doc:
-            return re.search(":[ \t]*{}[ \t]*:[ \t]*\n".format(exclusion), doc) is None
+            return re.search(":[ \t]*{}[ \t]*:[ \t]*\n".format(exclusion), doc) is not None
         else:
             return False
 
