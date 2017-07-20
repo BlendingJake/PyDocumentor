@@ -42,7 +42,6 @@ class Formatter:
     """
     Basic class to provide a backbone for any format classes. Guarantees that all method calls work within
     PyDocumentor.export(), even if the individual format classes don't implement that specific method.
-    :exclude_methods free_run:
     """
     FILE_EXT = ""  # file extension for the format
 
