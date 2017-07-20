@@ -131,6 +131,16 @@ class Formatter:
         return ""
 
     @classmethod
+    def module_functions_title(cls, prefix="", indent=0):
+        """
+        format the title for the section containing any functions in the module, does not include ones in classes
+        :param prefix: the parent's name
+        :param indent: how much to indent
+        :return: formatted title for the functions section
+        """
+        return ""
+
+    @classmethod
     def module_end(cls, indent=0):
         """
         Format the end of the body of the module
@@ -510,6 +520,10 @@ class HtmlFormatter(Formatter):
         return "<p>{}</p>".format(doc)
 
     @classmethod
+    def module_functions_title(cls, prefix="", indent=0):
+        return "<h4>Functions</h4>"
+
+    @classmethod
     def module_end(cls, indent=0):
         return "</div>"
 
@@ -709,6 +723,10 @@ class MarkdownFormatter(Formatter):
 
         return "{}> {}".format(indent_str, "".join(doc_list))
 
+    @classmethod
+    def module_functions_title(cls, prefix="", indent=0):
+        return "{}* ### Functions".format(cls._indentify(indent))
+
     # ---------------------------------------------------------------------------------
     # TABLE OF CONTENTS
     # ---------------------------------------------------------------------------------
@@ -888,19 +906,19 @@ class PyDocumentor:
             file.close()
 
     @staticmethod
-    def _format_functions(out: list, ft, funcs: list, cls: dict, indent: int):
+    def _format_functions(out: list, ft, funcs: list, prefix: str, indent: int):
         """
         Execute the proper Formatter function calls to add this block of functions to out
         :param out: the list being used to collected all the formatted data
         :param ft: the Formatter class to use to format the data
         :param funcs: a list of the functions to format
-        :param cls: the class
+        :param prefix: the parent's name
         :param indent: the indentation of this block of functions
         """
         out.append(ft.function_block_start(indent=indent - 1))
         for func in funcs:
             out.append(ft.function_start(indent=indent))
-            out.append(ft.function_signature(func['name'], func['parameters'], prefix=cls['name'], indent=indent))
+            out.append(ft.function_signature(func['name'], func['parameters'], prefix=prefix, indent=indent))
             out.append(ft.function_body_start(indent=indent))
             out.append(ft.function_doc(func['doc'], indent=indent + 1))
             out.append(ft.function_parameters(func['parameters'], indent=indent + 1))
@@ -1311,7 +1329,8 @@ class PyDocumentor:
                 out.append(ft.table_of_contents_end(indent=0))
 
             if mod['functions']:
-                self._format_functions(out, ft, mod['functions'], mod['name'], indent=1)
+                out.append(ft.module_functions_title(prefix=mod['name'], indent=1))
+                self._format_functions(out, ft, mod['functions'], mod['name'], indent=2)
 
             for cls in mod['classes']:
                 out.append(ft.class_start(indent=1))
@@ -1329,11 +1348,11 @@ class PyDocumentor:
 
                 if cls['static_methods']:
                     out.append(ft.static_function_title(indent=2))
-                    self._format_functions(out, ft, cls['static_methods'], cls, indent=3)
+                    self._format_functions(out, ft, cls['static_methods'], cls['name'], indent=3)
 
                 if cls['methods']:
                     out.append(ft.methods_title(indent=2))
-                    self._format_functions(out, ft, cls['methods'], cls, indent=3)
+                    self._format_functions(out, ft, cls['methods'], cls['name'], indent=3)
 
                 out.append(ft.class_body_end(indent=1))
                 out.append(ft.class_end(indent=1))
