@@ -708,7 +708,7 @@ class MarkdownFormatter(Formatter):
     # ---------------------------------------------------------------------------------
     @classmethod
     def module_title(cls, title, prefix="", indent=0):
-        return "# {}".format(title)
+        return "# {}.py".format(title)
 
     @classmethod
     def module_doc(cls, doc, prefix="", indent=0):
