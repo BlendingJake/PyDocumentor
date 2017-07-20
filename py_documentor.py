@@ -69,13 +69,14 @@ class Formatter:
     # MISC
     # --------------------------------------------------------------------------------
     @classmethod
-    def general_function_signature(cls, func_name: str, parameters: list) -> str:
+    def general_function_signature(cls, func_name: str, parameters: list, return_anno=None) -> str:
         """
         The function signature used is the same no matter what format is being used. This generates that signature as 
         func_name(a, b, ..., x=3, y="2", *args, **kwargs)
         :param func_name: the name of the function
         :param parameters: a dictionary of the parameters of this function. Formatted as collected by
         PyDocumentor._collect_function_info()
+        :param return_anno: the return annotation
         :return: the function signature
         """
         title = "{}(".format(func_name)
@@ -86,6 +87,8 @@ class Formatter:
 
             if 'default' in i:
                 temp += '={}'.format(i['default'] if i['default'] != "" else '""')
+            elif 'annotation' in i:
+                temp += ": {}".format(i['annotation'])
 
             if i['kind'] == Parameter.VAR_POSITIONAL:
                 temp = "*{}".format(i['name'])
@@ -94,7 +97,11 @@ class Formatter:
 
             params.append(temp)
 
-        return title + ", ".join(params) + ")"
+        anno = ""
+        if return_anno is not None:
+            anno = " -> {}".format(return_anno)
+
+        return title + ", ".join(params) + ")" + anno
 
     # ---------------------------------------------------------------------------------
     # MODULES
@@ -272,12 +279,13 @@ class Formatter:
         return ""
 
     @classmethod
-    def function_signature(cls, func_name: str, parameters: list, prefix="", indent=0):
+    def function_signature(cls, func_name: str, parameters: list, return_anno, prefix="", indent=0):
         """
         format the function signature, typically calls general_function_signature()
         :param func_name: the name of the function
         :param parameters: the function's parameters
         :param prefix: the parent's name
+        :param return_anno: the return annotation for the function
         :param indent: how much to indent 
         :return: formatted signature of the function
         """
@@ -585,10 +593,9 @@ class HtmlFormatter(Formatter):
         return "<div class='function'>"
 
     @classmethod
-    def function_signature(cls, func_name: str, parameters: list, prefix="", indent=0):
-        return "<a id='{}.{}' class='function_title'>{}</a>".format(prefix, func_name,
-                                                                    cls.general_function_signature(func_name,
-                                                                                                   parameters))
+    def function_signature(cls, func_name: str, parameters: list, return_anno, prefix="", indent=0):
+        return "<a id='{}.{}' class='function_title'>{}</a>".format(
+            prefix, func_name, cls.general_function_signature(func_name, parameters, return_anno=return_anno))
 
     @classmethod
     def function_body_start(cls, indent=0):
@@ -754,9 +761,10 @@ class MarkdownFormatter(Formatter):
     # ---------------------------------------------------------------------------------
 
     @classmethod
-    def function_signature(cls, func_name: str, parameters: list, prefix="", indent=0):
+    def function_signature(cls, func_name: str, parameters: list, return_anno, prefix="", indent=0):
         return "{}* #### <a name='{}.{}'>{}</a>".format(cls._indentify(indent), prefix, func_name,
-                                                        cls.general_function_signature(func_name, parameters))
+                                                        cls.general_function_signature(func_name, parameters,
+                                                                                       return_anno=return_anno))
 
     @classmethod
     def function_doc(cls, func_doc: str, indent=0):
@@ -918,7 +926,8 @@ class PyDocumentor:
         out.append(ft.function_block_start(indent=indent - 1))
         for func in funcs:
             out.append(ft.function_start(indent=indent))
-            out.append(ft.function_signature(func['name'], func['parameters'], prefix=prefix, indent=indent))
+            out.append(ft.function_signature(func['name'], func['parameters'], func['return_annotation'], prefix=prefix,
+                                             indent=indent))
             out.append(ft.function_body_start(indent=indent))
             out.append(ft.function_doc(func['doc'], indent=indent + 1))
             out.append(ft.function_parameters(func['parameters'], indent=indent + 1))
@@ -1138,7 +1147,7 @@ class PyDocumentor:
                 'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
                 'parameters': [],
                 'return': docs['RETURN'].strip() if 'RETURN' in docs else "",
-                'return_annotation': annotations['return'] if 'return' in annotations else None
+                'return_annotation': annotations['return'].__name__ if 'return' in annotations else None
             }
             sig = signature(func)
 
@@ -1149,7 +1158,7 @@ class PyDocumentor:
                 if param.name in docs:
                     param_data['doc'] = docs[param.name]
                 if param.name in annotations:
-                    param_data['annotation'] = annotations[param.name]
+                    param_data['annotation'] = annotations[param.name].__name__
 
                 data['parameters'].append(param_data)
 
