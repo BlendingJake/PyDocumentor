@@ -33,7 +33,7 @@ This will also override and collect a private method even if that option is Fals
 from os import walk, mkdir, sep
 from os.path import isfile, isdir, split as path_split, exists as path_exists, join as path_join
 import importlib.util
-from inspect import getmembers, signature, isclass, isfunction, ismethod, Parameter
+from inspect import getmembers, signature, isclass, isfunction, ismethod, Parameter, getfullargspec
 import re
 from typing import Optional
 
@@ -1131,12 +1131,14 @@ class PyDocumentor:
         :return: A dictionary containing the keys shown below, or None if the function is excluded
         """
         if not self._check_exclusion(func.__doc__, 'exclude'):
+            annotations = getfullargspec(func).annotations
             docs = PyDocumentor._analyze_function_docs(func.__doc__ if func.__doc__ is not None else "")
             data = {
                 'name': func.__name__,
                 'doc': docs['FUNCTION'] if 'FUNCTION' in docs else "",
                 'parameters': [],
                 'return': docs['RETURN'].strip() if 'RETURN' in docs else "",
+                'return_annotation': annotations['return'] if 'return' in annotations else None
             }
             sig = signature(func)
 
@@ -1146,6 +1148,8 @@ class PyDocumentor:
                     param_data['default'] = param.default
                 if param.name in docs:
                     param_data['doc'] = docs[param.name]
+                if param.name in annotations:
+                    param_data['annotation'] = annotations[param.name]
 
                 data['parameters'].append(param_data)
 
